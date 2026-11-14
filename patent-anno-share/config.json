@@ -1,0 +1,9 @@
+{
+  "api_key": "",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-chat",
+  "temperature": 0.2,
+  "concurrency": 5,
+  "batch_size": 5,
+  "target_lang": "中文"
+}

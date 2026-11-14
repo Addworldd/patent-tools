@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧芽专利中英对照可批注 HTML 生成器</title>
+<style>
+:root {
+  --primary: #1f3864;
+  --primary-hover: #2a4b87;
+  --accent: #2563eb;
+  --accent-light: #eff6ff;
+  --bg: #f8fafc;
+  --card-bg: #ffffff;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --success: #10b981;
+  --success-bg: #ecfdf5;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  padding: 24px 20px;
+}
+.container {
+  max-width: 920px;
+  margin: 0 auto;
+}
+header {
+  margin-bottom: 20px;
+}
+.badge {
+  display: inline-block;
+  background: var(--accent-light);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+h1 {
+  font-size: 22px;
+  color: var(--primary);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.subtitle {
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+
+/* 导航 Tabs */
+.tab-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.nav-tab {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-tab:hover {
+  background: #e2e8f0;
+  color: var(--text);
+}
+.nav-tab.active {
+  background: #fff;
+  color: var(--primary);
+  border-color: var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.nav-tab .tab-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: #e2e8f0;
+  color: #475569;
+}
+.nav-tab.active .tab-count {
+  background: var(--primary);
+  color: #fff;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.form-group {
+  margin-bottom: 16px;
+}
+label {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+input[type="text"], input[type="password"], textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+}
+textarea {
+  min-height: 100px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* 上传拖拽区域 */
+.dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 26px 20px;
+  text-align: center;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+.dropzone:hover, .dropzone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.dropzone .icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+.dropzone .primary-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.dropzone .sub-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 6px;
+}
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+}
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+.btn-primary:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  background: #f1f5f9;
+  color: var(--text);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.btn-secondary:hover {
+  background: #e2e8f0;
+}
+.btn-success {
+  background: #16a34a;
+  color: #fff;
+}
+.btn-success:hover {
+  background: #15803d;
+}
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.btn-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.btn-danger:hover {
+  background: #fecaca;
+}
+
+/* 批量表格 */
+.batch-table-wrap {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+}
+table.batch-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  text-align: left;
+}
+table.batch-table th {
+  background: #f1f5f9;
+  padding: 8px 12px;
+  font-weight: 600;
+  color: #475569;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+table.batch-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+table.batch-table tr:hover {
+  background: #f8fafc;
+}
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.status-waiting { background: #e2e8f0; color: #475569; }
+.status-running { background: #dbeafe; color: #1e40af; animation: pulse 1.2s infinite; }
+.status-completed { background: #dcfce7; color: #15803d; }
+.status-failed { background: #fee2e2; color: #991b1b; }
+@keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+
+/* 进度与日志 */
+.progress-box {
+  display: none;
+  margin-top: 18px;
+}
+.progress-bar-bg {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.progress-status {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+}
+.log-box {
+  background: #0f172a;
+  color: #f1f5f9;
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-family: Consolas, Monaco, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  height: 160px;
+  overflow-y: auto;
+  margin-top: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.result-card {
+  display: none;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-top: 18px;
+}
+.result-card h3 {
+  color: #166534;
+  font-size: 15px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.result-info {
+  font-size: 13px;
+  color: #15803d;
+  margin-bottom: 12px;
+}
+.action-buttons {
+  display: flex;
+  gap: 10px;
+}
+.action-buttons .btn {
+  flex: 1;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="badge">智慧芽专利提取 · DeepSeek 大模型高精翻译</div>
+    <h1>中英对照可批注 HTML 生成器</h1>
+    <div class="subtitle">输入智慧芽免登录分享链接，自动提取权利要求及说明书全文段号，内置 DeepSeek 专业专利翻译，输出离线单文件 HTML。</div>
+  </header>
+
+  <!-- 选项卡切换 -->
+  <div class="tab-header">
+    <button class="nav-tab active" id="tabSingle" onclick="switchMode('single')">
+      <span>📄 单篇快速生成</span>
+    </button>
+    <button class="nav-tab" id="tabBatch" onclick="switchMode('batch')">
+      <span>📚 批量批量生成 (New!)</span>
+      <span class="tab-count" id="badgeBatchCount">0</span>
+    </button>
+  </div>
+
+  <div class="card">
+    <!-- 通用配置：DeepSeek API Key -->
+    <div class="form-group">
+      <label for="apiKey">DeepSeek API Key (AK)</label>
+      <div class="row">
+        <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+        <button class="btn btn-secondary" id="btnTestKey" type="button">测试连通性</button>
+        <button class="btn btn-secondary" id="btnSaveKey" type="button">保存密钥</button>
+      </div>
+      <div id="testResult" style="display:none; font-size:12.5px; margin-top:6px; padding:6px 10px; border-radius:4px;"></div>
+      <div class="hint">配置 DeepSeek 后自动开启大模型专利精准翻译；若留空则优先使用系统环境变量 <code>DEEPSEEK_API_KEY</code> 或机翻。</div>
+    </div>
+
+    <!-- 通用配置：附图拉取 与 译文目标语言 -->
+    <div style="display: grid; grid-template-columns: 1fr 240px; gap: 16px; align-items: start;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; height: 38px;">
+          <input type="checkbox" id="withFigures" checked style="width: 17px; height: 17px; accent-color: var(--primary); cursor: pointer;">
+          <span>拉取并内嵌官方附图（路线B：下载 Base64 内嵌为独立单文件，右侧分屏展开浏览与旋转）</span>
+        </label>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 0;">
+        <label for="targetLang" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>译文目标语言</span>
+          <span style="font-size: 11px; color: var(--primary); font-weight: normal;">(可输入或选择)</span>
+        </label>
+        <div style="position: relative;">
+          <input type="text" id="targetLang" list="targetLangList" value="中文" placeholder="输入或选择语言" style="width: 100%; box-sizing: border-box; padding-right: 28px;">
+          <datalist id="targetLangList">
+            <option value="中文 (简体)">
+            <option value="中文 (繁体)">
+            <option value="英语 (English)">
+            <option value="日语 (日本語)">
+            <option value="韩语 (한국어)">
+            <option value="德语 (Deutsch)">
+            <option value="法语 (Français)">
+            <option value="俄语 (Русский)">
+            <option value="西班牙语 (Español)">
+          </datalist>
+        </div>
+      </div>
+    </div>
+
+    <hr style="border:0; border-top:1px solid var(--border); margin: 18px 0;">
+
+    <!-- 单篇模式面板 -->
+    <div id="paneSingle">
+      <div class="form-group">
+        <label for="shareUrl">智慧芽分享链接 (URL)</label>
+        <input type="text" id="shareUrl" placeholder="https://analytics.zhihuiya.com/patent-view/abst?patentId=...&shareId=...&signature=..." autocomplete="off">
+        <div class="hint">在智慧芽报告或详情页中导出的免登录分享链接（须包含 signature 等鉴权签名参数）</div>
+      </div>
+      <button class="btn btn-primary" id="btnStartSingle" type="button">开始提取与生成 HTML</button>
+    </div>
+
+    <!-- 批量模式面板 -->
+    <div id="paneBatch" style="display:none;">
+      <!-- 上传 Excel 区域 -->
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('fileExcel').click()">
+        <div class="icon">📊</div>
+        <div class="primary-text">点击或拖拽上传 Excel 表格 (.xlsx, .xls) 或 CSV 文件</div>
+        <div class="sub-text">系统将自动扫描工作表，精准提取单元格背后的超链接与对应公开号！</div>
+        <input type="file" id="fileExcel" accept=".xlsx,.xls,.csv" style="display:none">
+      </div>
+
+      <!-- 或者多行粘贴 -->
+      <div class="form-group">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <label style="margin-bottom:0;">或者直接粘贴多行链接 / 文本：</label>
+          <button class="btn btn-secondary btn-sm" id="btnParseText" type="button">解析文本链接</button>
+        </div>
+        <textarea id="batchText" placeholder="每行一个智慧芽分享链接，或直接将包含公开号与链接的文本/CSV粘贴于此...&#10;例如：&#10;US9386805B2 https://analytics.zhihuiya.com/patent-view/abst?patentId=...&signature=..."></textarea>
+      </div>
+
+      <!-- 待处理任务清单表格 -->
+      <div id="batchListSection" style="display:none; margin-top:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:13.5px; font-weight:600; color:var(--primary);">待生成专利清单 (<span id="batchCountText">0</span> 件)：</span>
+          <button class="btn btn-secondary btn-sm" id="btnClearBatch" type="button" style="color:#b91c1c;">清空清单</button>
+        </div>
+        <div class="batch-table-wrap">
+          <table class="batch-table">
+            <thead>
+              <tr>
+                <th style="width:40px;">#</th>
+                <th style="width:140px;">公开号</th>
+                <th>分享链接</th>
+                <th style="width:90px;">状态</th>
+                <th style="width:90px; text-align:center;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="batchTableBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="btn btn-primary" id="btnStartBatch" type="button">🚀 开始批量提取与生成 HTML</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 运行状态与进度条 -->
+    <div class="progress-box" id="progressBox">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-status">
+        <span id="stageText">正在准备启动引擎...</span>
+        <span id="percentText">0%</span>
+      </div>
+      <div class="log-box" id="logBox"></div>
+    </div>
+
+    <!-- 结果卡片 -->
+    <div class="result-card" id="resultCard">
+      <h3 id="resultTitle">🎉 生成完成！</h3>
+      <div class="result-info" id="resultInfo"></div>
+      <div class="action-buttons">
+        <button class="btn btn-success" id="btnOpenHtml" type="button">直接在浏览器中打开</button>
+        <button class="btn btn-secondary" id="btnOpenFolder" type="button">📂 打开成果文件夹</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentMode = "single";
+let batchTasks = [];
+let pollTimer = null;
+let finalHtmlPath = "";
+let lastLogLen = 0;
+
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById('tabSingle').classList.toggle('active', mode === 'single');
+  document.getElementById('tabBatch').classList.toggle('active', mode === 'batch');
+  document.getElementById('paneSingle').style.display = mode === 'single' ? 'block' : 'none';
+  document.getElementById('paneBatch').style.display = mode === 'batch' ? 'block' : 'none';
+}
+
+async function init() {
+  try {
+    const res = await fetch('/api/config');
+    const data = await res.json();
+    if (data.api_key) {
+      document.getElementById('apiKey').value = data.api_key;
+    }
+    if (data.target_lang) {
+      document.getElementById('targetLang').value = data.target_lang;
+    }
+  } catch (e) {}
+}
+
+/* ---------- 密钥测试与保存 ---------- */
+document.getElementById('btnTestKey').addEventListener('click', async () => {
+  const btn = document.getElementById('btnTestKey');
+  const resDiv = document.getElementById('testResult');
+  const key = document.getElementById('apiKey').value.trim();
+
+  btn.disabled = true;
+  btn.textContent = '测试中...';
+  resDiv.style.display = 'block';
+  resDiv.style.background = '#f1f5f9';
+  resDiv.style.color = '#475569';
+  resDiv.textContent = '正在与 DeepSeek API 握手连通...';
+
+  try {
+    const resp = await fetch('/api/test-deepseek', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: key })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      resDiv.style.background = '#dcfce7';
+      resDiv.style.color = '#15803d';
+      resDiv.textContent = `✔ ${data.msg || '连通成功！DeepSeek API 状态正常，模型准备就绪。'}`;
+    } else {
+      resDiv.style.background = '#fee2e2';
+      resDiv.style.color = '#991b1b';
+      resDiv.textContent = `✖ 连通失败: ${data.error || '无法连接 API，请检查 Key 或网络'}`;
+    }
+  } catch (e) {
+    resDiv.style.background = '#fee2e2';
+    resDiv.style.color = '#991b1b';
+    resDiv.textContent = `✖ 请求失败: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '测试连通性';
+  }
+});
+
+document.getElementById('btnSaveKey').addEventListener('click', async () => {
+  const btn = document.getElementById('btnSaveKey');
+  const key = document.getElementById('apiKey').value.trim();
+  const targetLang = document.getElementById('targetLang').value.trim() || '中文';
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  try {
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: key, target_lang: targetLang })
+    });
+    alert('已成功保存配置（API 密钥与译文目标语言）！');
+  } catch (e) {
+    alert('保存失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '保存密钥';
+  }
+});
+
+/* ---------- Excel 上传与解析 ---------- */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileExcel');
+
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) {
+    handleFile(e.dataTransfer.files[0]);
+  }
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length > 0) {
+    handleFile(fileInput.files[0]);
+  }
+});
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    try {
+      const resp = await fetch('/api/parse-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_base64: base64, filename: file.name })
+      });
+      const res = await resp.json();
+      if (res.ok && res.items.length > 0) {
+        addBatchTasks(res.items);
+      } else {
+        alert(res.error || '未在文件中识别到有效的专利分享链接');
+      }
+    } catch (err) {
+      alert('解析文件异常: ' + err.message);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+document.getElementById('btnParseText').addEventListener('click', async () => {
+  const txt = document.getElementById('batchText').value.trim();
+  if (!txt) { alert('请先在输入框中粘贴包含链接的文本'); return; }
+  try {
+    const resp = await fetch('/api/parse-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: txt })
+    });
+    const res = await resp.json();
+    if (res.ok && res.items.length > 0) {
+      addBatchTasks(res.items);
+    } else {
+      alert('未能识别到有效的智慧芽分享链接');
+    }
+  } catch (err) {
+    alert('解析异常: ' + err.message);
+  }
+});
+
+function addBatchTasks(newItems) {
+  // 判重合入
+  const existUrls = new Set(batchTasks.map(t => t.url));
+  newItems.forEach(it => {
+    if (!existUrls.has(it.url)) {
+      batchTasks.push(it);
+      existUrls.add(it.url);
+    }
+  });
+  renderBatchTable();
+}
+
+function renderBatchTable() {
+  const tbody = document.getElementById('batchTableBody');
+  tbody.innerHTML = '';
+  document.getElementById('batchCountText').textContent = batchTasks.length;
+  document.getElementById('badgeBatchCount').textContent = batchTasks.length;
+  document.getElementById('batchListSection').style.display = batchTasks.length > 0 ? 'block' : 'none';
+
+  batchTasks.forEach((t, i) => {
+    const tr = document.createElement('tr');
+    let statusClass = 'status-waiting';
+    let statusText = '等待处理';
+    if (t.status === 'running') { statusClass = 'status-running'; statusText = '正在处理...'; }
+    else if (t.status === 'completed') { statusClass = 'status-completed'; statusText = '✔ 已完成'; }
+    else if (t.status === 'failed') { statusClass = 'status-failed'; statusText = '✖ 失败'; }
+
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td><strong>${t.pn || '-'}</strong></td>
+      <td style="color:#64748b; font-size:11.5px; word-break:break-all;">${t.url.slice(0, 75)}...</td>
+      <td><span class="status-pill ${statusClass}">${statusText}</span></td>
+      <td style="text-align:center;">
+        ${t.html ? `<button class="btn btn-secondary btn-sm" onclick="openFile('${encodeURIComponent(t.html)}')">打开</button>` : `<button class="btn btn-danger btn-sm" onclick="removeTask(${i})">移除</button>`}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function removeTask(idx) {
+  batchTasks.splice(idx, 1);
+  renderBatchTable();
+}
+document.getElementById('btnClearBatch').onclick = () => {
+  batchTasks = [];
+  renderBatchTable();
+};
+
+/* ---------- 任务启动与轮询 ---------- */
+document.getElementById('btnStartSingle').addEventListener('click', () => {
+  const url = document.getElementById('shareUrl').value.trim();
+  if (!url) { alert('请输入智慧芽分享链接'); return; }
+  startJob('/api/start', { url });
+});
+
+document.getElementById('btnStartBatch').addEventListener('click', () => {
+  if (batchTasks.length === 0) { alert('待生成清单为空，请先上传 Excel 或粘贴链接'); return; }
+  startJob('/api/start-batch', { tasks: batchTasks });
+});
+
+async function startJob(endpoint, payload) {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const withFigures = document.getElementById('withFigures').checked;
+  const targetLang = document.getElementById('targetLang').value.trim() || '中文';
+
+  payload.api_key = apiKey;
+  payload.with_figures = withFigures;
+  payload.target_lang = targetLang;
+
+  document.getElementById('btnStartSingle').disabled = true;
+  document.getElementById('btnStartBatch').disabled = true;
+  document.getElementById('progressBox').style.display = 'block';
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('logBox').textContent = '';
+  lastLogLen = 0;
+
+  try {
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const res = await resp.json();
+    if (!res.ok) {
+      alert('启动任务失败: ' + (res.error || '未知错误'));
+      document.getElementById('btnStartSingle').disabled = false;
+      document.getElementById('btnStartBatch').disabled = false;
+      return;
+    }
+    startPolling();
+  } catch (err) {
+    alert('请求失败: ' + err.message);
+    document.getElementById('btnStartSingle').disabled = false;
+    document.getElementById('btnStartBatch').disabled = false;
+  }
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    try {
+      const resp = await fetch(`/api/status?since=${lastLogLen}`);
+      const data = await resp.json();
+
+      document.getElementById('progressFill').style.width = data.progress + '%';
+      document.getElementById('percentText').textContent = data.progress + '%';
+      document.getElementById('stageText').textContent = data.stage;
+
+      if (data.logs && data.logs.length > 0) {
+        const box = document.getElementById('logBox');
+        data.logs.forEach(l => { box.textContent += l + '\n'; });
+        box.scrollTop = box.scrollHeight;
+        lastLogLen += data.logs.length;
+      }
+
+      // 如果是批量模式，同步更新表格行状态
+      if (data.mode === 'batch' && data.batch_tasks) {
+        batchTasks = data.batch_tasks;
+        renderBatchTable();
+      }
+
+      if (data.status === 'completed') {
+        clearInterval(pollTimer);
+        document.getElementById('btnStartSingle').disabled = false;
+        document.getElementById('btnStartBatch').disabled = false;
+        showResult(data);
+      } else if (data.status === 'failed') {
+        clearInterval(pollTimer);
+        document.getElementById('btnStartSingle').disabled = false;
+        document.getElementById('btnStartBatch').disabled = false;
+        alert('生成失败: ' + (data.error || '请查看控制台日志'));
+      }
+    } catch (e) {}
+  }, 1000);
+}
+
+function showResult(data) {
+  const card = document.getElementById('resultCard');
+  const title = document.getElementById('resultTitle');
+  const info = document.getElementById('resultInfo');
+  finalHtmlPath = data.final_html;
+
+  card.style.display = 'block';
+  if (data.mode === 'batch') {
+    title.textContent = `🎉 批量生成全部完成！`;
+    info.textContent = `成功处理并导出了 ${data.batch_completed}/${data.batch_total} 件专利的独立中英对照可批注 HTML 单文件。`;
+    document.getElementById('btnOpenHtml').style.display = 'none';
+  } else {
+    title.textContent = `🎉 HTML 生成完成！`;
+    info.textContent = `已生成独立单文件: ${finalHtmlPath}`;
+    document.getElementById('btnOpenHtml').style.display = 'inline-flex';
+  }
+}
+
+function openFile(encodedPath) {
+  fetch(`/api/open?target=${encodedPath}`);
+}
+document.getElementById('btnOpenHtml').onclick = () => {
+  if (finalHtmlPath) fetch(`/api/open?target=${encodeURIComponent(finalHtmlPath)}`);
+};
+document.getElementById('btnOpenFolder').onclick = () => {
+  fetch(`/api/open-folder`);
+};
+
+init();
+</script>
+</body>
+</html>

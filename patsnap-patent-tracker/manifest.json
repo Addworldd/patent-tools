@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "智慧芽专利浏览追踪助手 (Patsnap Patent Tracker)",
+  "version": "1.0.0",
+  "description": "自动精准记录在智慧芽屏幕中曝光浏览和点开详情的专利公开号，在列表中智能高亮标记，提高专利筛选效率。",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.patsnap.com/*",
+    "*://*.zhihuiya.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.patsnap.com/*",
+        "*://*.zhihuiya.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
