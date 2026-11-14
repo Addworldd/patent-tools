@@ -419,6 +419,7 @@ mark.mine{background:var(--mine); border-bottom-color:var(--mineb)}
   <button id="btnExport" title="导出批注 JSON">导出批注</button>
   <button id="btnImport" title="导入他人批注">导入批注</button>
   <button id="btnMd" title="导出 Markdown 表格">导出 MD</button>
+  <button id="btnClearAll" title="清空本电脑上该专利的全部本地批注并重置" style="color:#b91c1c;border-color:#fca5a5;">🗑️ 清空批注</button>
   <input type="file" id="fileIn" accept=".json" style="display:none">
 </header>
 
@@ -1321,9 +1322,36 @@ function toast(msg, ms=2500, err=false){
 }
 
 /* ---------- 批注导出 / 导入 ---------- */
+async function saveBlobWithPicker(blob, defaultName, typeDesc, ext) {
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: defaultName,
+        types: [{
+          description: typeDesc,
+          accept: { [blob.type || 'application/octet-stream']: [ext] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return false; // 用户主动取消
+      console.warn('showSaveFilePicker 出错，回退到普通下载', err);
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = defaultName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return true;
+}
+
 const btnExportHtml = document.getElementById('btnExportHtml');
 if (btnExportHtml) {
-  btnExportHtml.onclick = () => {
+  btnExportHtml.onclick = async () => {
     if (S.marks.length === 0) {
       if (!confirm('当前尚未添加任何高亮批注，确定要导出可迁移版吗？')) return;
     }
@@ -1339,27 +1367,23 @@ if (btnExportHtml) {
       '<span class="mode-badge portable" id="modeBadge" title="当前为可迁移完整版，已自带固化所有批注，可在任何电脑上离线双击查看！">🚀 可迁移版</span>');
 
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = DOC_ID + '_中英对照_[可迁移版].html';
-    a.click();
-    window.__PRELOADED_MARKS__ = JSON.parse(JSON.stringify(S.marks));
-    checkDirtyState();
-    toast(`已生成自带批注的独立【可迁移版】HTML（包含 ${S.marks.length} 处高亮）！可在任何新电脑双击查看。`, 4000);
+    const ok = await saveBlobWithPicker(blob, DOC_ID + '_中英对照_[可迁移版].html', 'HTML 文件', '.html');
+    if (ok) {
+      window.__PRELOADED_MARKS__ = JSON.parse(JSON.stringify(S.marks));
+      checkDirtyState();
+      toast(`已生成自带批注的独立【可迁移版】HTML（包含 ${S.marks.length} 处高亮）！`, 4000);
+    }
   };
 }
 
-document.getElementById('btnExport').onclick = () => {
+document.getElementById('btnExport').onclick = async () => {
   const o = {
     v: 1, docId: DOC_ID, title: DATA.title, exported: new Date().toISOString(),
     marks: S.marks
   };
   const blob = new Blob([JSON.stringify(o, null, 2)], {type:'application/json;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = DOC_ID + '_批注.json';
-  a.click();
-  toast('已导出批注文件');
+  const ok = await saveBlobWithPicker(blob, DOC_ID + '_批注.json', 'JSON 批注文件', '.json');
+  if (ok) toast('已导出批注文件');
 };
 document.getElementById('btnImport').onclick = () => document.getElementById('fileIn').click();
 document.getElementById('fileIn').onchange = async ev => {
@@ -1381,7 +1405,7 @@ document.getElementById('fileIn').onchange = async ev => {
   finally{ ev.target.value = ''; }
 };
 
-document.getElementById('btnMd').onclick = () => {
+document.getElementById('btnMd').onclick = async () => {
   const rows = S.marks.filter(m => m.note && m.note.trim());
   let L = ['# ' + DATA.title + ' · 批注汇总', '',
            `- 文档：${DOC_ID}`, `- 导出时间：${new Date().toLocaleString('zh-CN')}`, `- 批注条数：**${rows.length}**`, '',
@@ -1391,12 +1415,32 @@ document.getElementById('btnMd').onclick = () => {
     L.push(`| ${i+1} | 【${m.no}】 | ${SIDE[m.side]} | ${(m.text||'').replace(/\|/g,'\\|')} | ${(m.note||'').replace(/\|/g,'\\|')} | ${m.author||''} |`);
   });
   const blob = new Blob([L.join('\n')], {type:'text/markdown;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = DOC_ID + '_批注汇总.md';
-  a.click();
-  toast('已导出 Markdown 汇总表');
+  const ok = await saveBlobWithPicker(blob, DOC_ID + '_批注汇总.md', 'Markdown 文件', '.md');
+  if (ok) toast('已导出 Markdown 汇总表');
 };
+
+/* ---------- 一键清空本地批注 ---------- */
+const btnClearAll = document.getElementById('btnClearAll');
+if (btnClearAll) {
+  btnClearAll.onclick = () => {
+    const curCount = S.marks ? S.marks.length : 0;
+    const msg = curCount > 0 
+      ? `确定要彻底清空本电脑上【${DOC_ID}】的所有本地批注吗？\n当前共有 ${curCount} 处高亮批注将被删除，此操作不可撤销！`
+      : `确定要彻底重置本电脑上【${DOC_ID}】的本地缓存吗？`;
+    if (!confirm(msg)) return;
+    try {
+      localStorage.removeItem(LS_KEY);
+      window.__PRELOADED_MARKS__ = [];
+      S.marks = [];
+      paint();
+      checkDirtyState();
+      toast('已彻底清空本篇专利的全部本地批注！', 3000);
+    } catch(e) {
+      console.error(e);
+      toast('清空失败: ' + e.message, 3000, true);
+    }
+  };
+}
 
 /* ---------- 启动初始化 ---------- */
 const subEl = document.querySelector('header .sub');
