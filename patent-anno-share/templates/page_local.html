@@ -209,26 +209,62 @@ header button:hover{background:var(--brand2); color:#fff}
   transform-origin:center center;
 }
 
-/* 附图全屏预览 Lightbox */
+/* 附图全屏预览 Lightbox (支持鼠标滚轮无级缩放与拖拽平移) */
 #lightbox{
   position:fixed; top:0; left:0; width:100vw; height:100vh;
-  background:rgba(15,23,42,.85); z-index:300; display:none;
-  align-items:center; justify-content:center; backdrop-filter:blur(3px);
+  background:rgba(15,23,42,.88); z-index:300; display:none;
+  flex-direction:column; align-items:center; justify-content:center;
+  backdrop-filter:blur(4px); user-select:none;
 }
 #lightbox.active{display:flex}
-.lb-content{position:relative; max-width:92vw; max-height:92vh; display:flex; flex-direction:column; align-items:center}
-.lb-content img{
-  max-width:90vw; max-height:80vh; object-fit:contain;
+.lb-viewport{
+  width:92vw; height:80vh; display:flex; align-items:center; justify-content:center;
+  overflow:hidden; position:relative; cursor:grab;
+}
+.lb-viewport.grabbing{
+  cursor:grabbing;
+}
+.lb-viewport img{
+  max-width:90vw; max-height:78vh; object-fit:contain;
   box-shadow:0 20px 40px rgba(0,0,0,.5); border-radius:6px; background:#fff;
-  transition:transform .22s cubic-bezier(0.2,0,0,1);
   transform-origin:center center;
+  will-change:transform;
+  transition:transform .12s cubic-bezier(0.2, 0, 0, 1);
+  pointer-events:auto;
 }
-.lb-bar{margin-top:10px; display:flex; gap:12px; align-items:center; color:#fff; font-size:10pt}
+.lb-bar{
+  margin-top:12px; display:flex; gap:8px; align-items:center; color:#fff; font-size:9pt;
+  background:rgba(15,23,42,.85); padding:6px 14px; border-radius:30px;
+  border:1px solid rgba(255,255,255,.18); box-shadow:0 8px 24px rgba(0,0,0,.35);
+  flex-wrap:wrap; justify-content:center; max-width:95vw;
+}
 .lb-btn{
-  background:rgba(255,255,255,.2); color:#fff; border:1px solid rgba(255,255,255,.3);
-  padding:4px 12px; border-radius:4px; cursor:pointer; font-size:9pt;
+  background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.25);
+  padding:4px 10px; border-radius:4px; cursor:pointer; font-size:8.5pt;
+  transition:all .15s; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;
 }
-.lb-btn:hover{background:rgba(255,255,255,.35)}
+.lb-btn:hover{background:rgba(255,255,255,.3); border-color:rgba(255,255,255,.45)}
+.lb-divider{width:1px; height:16px; background:rgba(255,255,255,.2); margin:0 3px}
+.lb-hint{
+  font-size:7.5pt; color:#94a3b8; margin-top:5px; text-align:center;
+}
+.fig-scale-badge{
+  font-size:7pt; color:#64748b; font-weight:600; min-width:28px; text-align:center;
+  background:#f1f5f9; border-radius:3px; padding:1px 3px;
+}
+.fig-img-wrap{
+  padding:14px; display:flex; justify-content:center; align-items:flex-start;
+  background:#fff; border-radius:0 0 8px 8px;
+  overflow:hidden; position:relative; min-height:160px;
+}
+.fig-img-wrap img{
+  width:100%; height:auto; max-height:none; object-fit:contain;
+  border-radius:4px; display:block;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+  transition:transform .2s ease;
+  transform-origin:center center;
+  cursor:zoom-in;
+}
 
 /* 提示与高亮说明 */
 .tip-bar{
@@ -473,28 +509,43 @@ mark.mine{background:var(--mine); border-bottom-color:var(--mineb)}
   <!-- 右侧附图区域 -->
   <div class="figures-pane" id="figuresPane">
     <div class="figures-header">
-      <span>附图展开浏览 (<b id="cFigCount">0</b>)</span>
-      <button class="fig-header-btn" id="btnRotateAll" title="将所有附图顺时针旋转90度">↷ 全局旋转90°</button>
-      <select id="figJumpSelect" class="fig-select" title="快速跳转至指定图">
-        <option value="">快速跳转...</option>
-      </select>
+      <div style="display:flex;align-items:center;gap:5px">
+        <span>附图 (<b id="cFigCount">0</b>)</span>
+        <button class="fig-header-btn" id="btnZoomOutAll" title="全局缩小所有附图">－</button>
+        <span id="globalFigScale" style="font-size:7.5pt;color:#64748b;min-width:30px;text-align:center">100%</span>
+        <button class="fig-header-btn" id="btnZoomInAll" title="全局放大所有附图">＋</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="fig-header-btn" id="btnRotateAll" title="将所有附图顺时针旋转90度">↷ 旋转90°</button>
+        <select id="figJumpSelect" class="fig-select" title="快速跳转至指定图">
+          <option value="">跳转至指定图...</option>
+        </select>
+      </div>
     </div>
     <div class="figures-list" id="figuresList"></div>
   </div>
 </div>
 
-<!-- 附图高清模态查看器 (Lightbox) -->
+<!-- 附图高清模态查看器 (Lightbox，支持鼠标滚轮无级缩放与拖拽平移) -->
 <div id="lightbox">
-  <div class="lb-content">
+  <div class="lb-viewport" id="lbViewport">
     <img id="lbImg" src="" alt="附图预览">
-    <div class="lb-bar">
-      <button class="lb-btn" id="lbPrev">上一张 (←)</button>
-      <span id="lbTitle" style="font-weight:600"></span>
-      <button class="lb-btn" id="lbNext">下一张 (→)</button>
-      <button class="lb-btn" id="lbRotate" style="background:#2563eb;border-color:#2563eb" title="顺时针旋转90度 (快捷键 R)">↷ 旋转 90° (R)</button>
-      <button class="lb-btn" id="lbClose" style="margin-left:10px;background:#ef4444;border-color:#ef4444">关闭 (Esc)</button>
-    </div>
   </div>
+  <div class="lb-bar">
+    <button class="lb-btn" id="lbPrev" title="上一张 (快捷键 ←)">◀ 上一张 (←)</button>
+    <span id="lbTitle" style="font-weight:600;min-width:110px;text-align:center"></span>
+    <button class="lb-btn" id="lbNext" title="下一张 (快捷键 →)">下一张 (→) ▶</button>
+    <div class="lb-divider"></div>
+    <button class="lb-btn" id="lbZoomOut" title="缩小 (快捷键 - 或滚轮向下)">🔍－ 缩小</button>
+    <span id="lbZoomLevel" style="font-size:8.5pt;font-weight:700;min-width:44px;text-align:center;color:#60a5fa">100%</span>
+    <button class="lb-btn" id="lbZoomIn" title="放大 (快捷键 + 或滚轮向上)">🔍＋ 放大</button>
+    <button class="lb-btn" id="lbResetZoom" title="重置为适应窗口 (快捷键 0)">⛶ 适应窗口</button>
+    <button class="lb-btn" id="lbActualSize" title="1:1 实际原图尺寸 (快捷键 1)">1:1 原图</button>
+    <div class="lb-divider"></div>
+    <button class="lb-btn" id="lbRotate" style="background:#2563eb;border-color:#2563eb" title="顺时针旋转90度 (快捷键 R)">↷ 旋转 90° (R)</button>
+    <button class="lb-btn" id="lbClose" style="margin-left:4px;background:#ef4444;border-color:#ef4444" title="关闭全屏 (快捷键 Esc)">✕ 关闭 (Esc)</button>
+  </div>
+  <div class="lb-hint">💡 提示：在图片上直接滚动鼠标滚轮可无级缩放，按住鼠标左键可拖拽平移，双击图片可在适应窗口与放大之间快速切换</div>
 </div>
 
 <!-- 划选工具条 -->
@@ -524,7 +575,7 @@ mark.mine{background:var(--mine); border-bottom-color:var(--mineb)}
 <div id="toast"></div>
 
 <script>
-window.__PRELOADED_MARKS__ = [];
+window.__PRELOADED_MARKS__ = __INLINED_MARKS_JSON__;
 const DATA = __DATA__;
 const DOC_ID = __DOC_ID__;
 
@@ -542,7 +593,12 @@ const S = {
   curTab: 'claims', 
   curFigIdx: 0,
   cardRotates: {},
+  cardScales: {},
+  globalCardScale: 1.0,
   lbRotate: 0,
+  lbScale: 1.0,
+  lbPanX: 0,
+  lbPanY: 0,
   visibleMarks: [],
   activeMarkIdx: -1,
   glossaryFilter: ''
@@ -589,20 +645,28 @@ function initFiguresLayout() {
     const card = document.createElement('div');
     card.className = 'fig-card';
     card.id = cardId;
-    card.title = '点击全屏高清查看 ' + (fig.name || ('图 ' + (idx + 1)));
     card.innerHTML = `
       <div class="fig-title">
         <span>${esc(fig.name || ('图 ' + (idx + 1)))}</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <button class="fig-action-btn" title="顺时针旋转90°" onclick="rotateCardFig(event, ${idx})">↷ 旋转90°</button>
-          <span class="fig-tag">#${idx + 1} 全屏</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="fig-action-btn" title="缩小该图" onclick="zoomCardFig(event, ${idx}, -0.2)">－</button>
+          <span class="fig-scale-badge" id="fig-scale-${idx}" title="当前缩放">100%</span>
+          <button class="fig-action-btn" title="放大该图" onclick="zoomCardFig(event, ${idx}, 0.2)">＋</button>
+          <button class="fig-action-btn" title="顺时针旋转90°" onclick="rotateCardFig(event, ${idx})">↷ 90°</button>
+          <button class="fig-action-btn" style="background:#eff6ff;color:var(--accent);font-weight:600" title="点击全屏高清查看与缩放" onclick="openLightboxFromBtn(event, ${idx})">⛶ 全屏</button>
         </div>
       </div>
-      <div class="fig-img-wrap">
-        <img id="${imgId}" src="${fig.src}" alt="${esc(fig.name || '')}">
+      <div class="fig-img-wrap" id="fig-wrap-${idx}">
+        <img id="${imgId}" src="${fig.src}" alt="${esc(fig.name || '')}" title="单击全屏查看，双击重置缩放">
       </div>
     `;
-    card.onclick = () => openLightbox(idx);
+
+    // 点击卡片图片打开全屏
+    const imgEl = card.querySelector('#' + imgId);
+    imgEl.onclick = (e) => {
+      openLightbox(idx);
+    };
+
     listEl.appendChild(card);
 
     const opt = document.createElement('option');
@@ -620,32 +684,54 @@ function initFiguresLayout() {
   };
 }
 
-/* 卡片单图旋转 */
+function openLightboxFromBtn(ev, idx) {
+  if (ev) ev.stopPropagation();
+  openLightbox(idx);
+}
+
+/* 卡片单图缩放与旋转控制 */
+function zoomCardFig(ev, idx, delta) {
+  if (ev) ev.stopPropagation();
+  const curScale = S.cardScales[idx] || 1.0;
+  let nextScale = Math.round((curScale + delta) * 10) / 10;
+  nextScale = Math.max(0.6, Math.min(3.0, nextScale));
+  S.cardScales[idx] = nextScale;
+  applyCardTransform(idx);
+}
+
 function rotateCardFig(ev, idx) {
   if (ev) ev.stopPropagation();
   const cur = S.cardRotates[idx] || 0;
   const next = (cur + 90) % 360;
   S.cardRotates[idx] = next;
-  applyCardRotate(idx, next);
+  applyCardTransform(idx);
 }
 
-function applyCardRotate(idx, deg) {
+function applyCardTransform(idx) {
   const img = document.getElementById('fig-img-' + idx);
+  const badge = document.getElementById('fig-scale-' + idx);
   if (!img) return;
+
+  const deg = S.cardRotates[idx] || 0;
+  const userScale = S.cardScales[idx] || 1.0;
+
+  if (badge) badge.textContent = Math.round(userScale * 100) + '%';
+
   if (deg === 90 || deg === 270) {
     const wrap = img.parentElement;
     const w = (wrap ? wrap.clientWidth : 400) - 28;
     const nh = img.naturalHeight || img.clientHeight || 500;
-    const scale = Math.min(1, Math.max(0.45, w / nh));
-    img.style.transform = `rotate(${deg}deg) scale(${scale.toFixed(2)})`;
+    const baseScale = Math.min(1, Math.max(0.45, w / nh));
+    const finalScale = (baseScale * userScale).toFixed(2);
+    img.style.transform = `rotate(${deg}deg) scale(${finalScale})`;
     img.style.margin = `${Math.round(Math.abs(img.clientWidth - img.clientHeight) * 0.15)}px 0`;
   } else {
-    img.style.transform = `rotate(${deg}deg)`;
+    img.style.transform = `rotate(${deg}deg) scale(${userScale.toFixed(2)})`;
     img.style.margin = '0';
   }
 }
 
-// 全局一键旋转
+// 全局卡片缩放与旋转控制
 let globalRotate = 0;
 const btnAll = document.getElementById('btnRotateAll');
 if (btnAll) {
@@ -653,11 +739,25 @@ if (btnAll) {
     globalRotate = (globalRotate + 90) % 360;
     figures.forEach((_, idx) => {
       S.cardRotates[idx] = globalRotate;
-      applyCardRotate(idx, globalRotate);
+      applyCardTransform(idx);
     });
     toast(`所有附图已统一旋转至 ${globalRotate}°`);
   };
 }
+
+function zoomAllCards(delta) {
+  S.globalCardScale = Math.max(0.6, Math.min(3.0, Math.round((S.globalCardScale + delta) * 10) / 10));
+  const el = document.getElementById('globalFigScale');
+  if (el) el.textContent = Math.round(S.globalCardScale * 100) + '%';
+  figures.forEach((_, idx) => {
+    S.cardScales[idx] = S.globalCardScale;
+    applyCardTransform(idx);
+  });
+}
+const btnZoomInAll = document.getElementById('btnZoomInAll');
+if (btnZoomInAll) btnZoomInAll.onclick = () => zoomAllCards(0.2);
+const btnZoomOutAll = document.getElementById('btnZoomOutAll');
+if (btnZoomOutAll) btnZoomOutAll.onclick = () => zoomAllCards(-0.2);
 
 // 拖拽调整左右分栏
 let isDragging = false;
@@ -688,28 +788,65 @@ document.addEventListener('mouseup', () => {
   }
 });
 
-/* Lightbox 弹窗与旋转控制 */
+/* ---------- Lightbox 全屏模态查看器 (无级滚轮缩放 + 拖拽平移) ---------- */
 const lb = document.getElementById('lightbox');
+const lbViewport = document.getElementById('lbViewport');
 const lbImg = document.getElementById('lbImg');
 const lbTitle = document.getElementById('lbTitle');
+const lbZoomLevel = document.getElementById('lbZoomLevel');
 
 function rotateLightbox(delta = 90) {
   S.lbRotate = (S.lbRotate + delta + 360) % 360;
-  applyLightboxRotate();
+  applyLightboxTransform(true);
 }
 
-function applyLightboxRotate() {
+function applyLightboxTransform(smooth = false) {
+  lbImg.style.transition = smooth ? 'transform .2s ease' : 'none';
   const deg = S.lbRotate;
+  const s = S.lbScale;
+  const tx = S.lbPanX;
+  const ty = S.lbPanY;
+
+  let baseScale = 1;
   if (deg === 90 || deg === 270) {
     const nw = lbImg.naturalWidth || 800;
     const nh = lbImg.naturalHeight || 600;
     const maxW = window.innerWidth * 0.88;
     const maxH = window.innerHeight * 0.78;
-    const scale = Math.min(maxW / nh, maxH / nw, 1);
-    lbImg.style.transform = `rotate(${deg}deg) scale(${scale.toFixed(3)})`;
-  } else {
-    lbImg.style.transform = `rotate(${deg}deg)`;
+    baseScale = Math.min(maxW / nh, maxH / nw, 1);
   }
+
+  const effectiveScale = (baseScale * s).toFixed(3);
+  lbImg.style.transform = `translate(${tx}px, ${ty}px) rotate(${deg}deg) scale(${effectiveScale})`;
+
+  if (lbZoomLevel) lbZoomLevel.textContent = Math.round(s * 100) + '%';
+}
+
+function zoomLightbox(factor, smooth = true) {
+  let next = S.lbScale * factor;
+  next = Math.max(0.3, Math.min(6.0, next));
+  S.lbScale = next;
+  applyLightboxTransform(smooth);
+}
+
+function resetLightboxZoom() {
+  S.lbScale = 1.0;
+  S.lbPanX = 0;
+  S.lbPanY = 0;
+  applyLightboxTransform(true);
+}
+
+function actualSizeLightbox() {
+  const nw = lbImg.naturalWidth || 800;
+  const renderW = lbImg.clientWidth || 800;
+  if (renderW > 0) {
+    S.lbScale = nw / renderW;
+  } else {
+    S.lbScale = 1.0;
+  }
+  S.lbPanX = 0;
+  S.lbPanY = 0;
+  applyLightboxTransform(true);
 }
 
 function openLightbox(idx) {
@@ -718,19 +855,83 @@ function openLightbox(idx) {
   const fig = figures[idx];
   lbImg.src = fig.src;
   lbTitle.textContent = `${fig.name || ('图 ' + (idx + 1))} (${idx + 1}/${figures.length})`;
-  // 继承该卡片已旋转的角度
   S.lbRotate = S.cardRotates[idx] || 0;
-  applyLightboxRotate();
+  S.lbScale = 1.0;
+  S.lbPanX = 0;
+  S.lbPanY = 0;
+  applyLightboxTransform(false);
   lb.classList.add('active');
 }
-function closeLightbox() { lb.classList.remove('active'); }
+
+function closeLightbox() { 
+  lb.classList.remove('active'); 
+}
+
+// 控件事件绑定
 document.getElementById('lbClose').onclick = closeLightbox;
 document.getElementById('lbPrev').onclick = () => openLightbox((S.curFigIdx - 1 + figures.length) % figures.length);
 document.getElementById('lbNext').onclick = () => openLightbox((S.curFigIdx + 1) % figures.length);
 const lbRotBtn = document.getElementById('lbRotate');
 if (lbRotBtn) lbRotBtn.onclick = () => rotateLightbox(90);
 
-lb.onclick = (e) => { if (e.target === lb) closeLightbox(); };
+document.getElementById('lbZoomIn').onclick = () => zoomLightbox(1.25, true);
+document.getElementById('lbZoomOut').onclick = () => zoomLightbox(0.8, true);
+document.getElementById('lbResetZoom').onclick = resetLightboxZoom;
+document.getElementById('lbActualSize').onclick = actualSizeLightbox;
+
+// 鼠标滚轮缩放
+lbViewport.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.15 : 0.87;
+  zoomLightbox(factor, false);
+}, { passive: false });
+
+// 鼠标左键按住拖拽平移
+let isLbDragging = false;
+let lbStartX = 0, lbStartY = 0;
+let lbStartPanX = 0, lbStartPanY = 0;
+
+lbViewport.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+  isLbDragging = true;
+  lbViewport.classList.add('grabbing');
+  lbStartX = e.clientX;
+  lbStartY = e.clientY;
+  lbStartPanX = S.lbPanX;
+  lbStartPanY = S.lbPanY;
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isLbDragging) return;
+  S.lbPanX = lbStartPanX + (e.clientX - lbStartX);
+  S.lbPanY = lbStartPanY + (e.clientY - lbStartY);
+  applyLightboxTransform(false);
+});
+
+document.addEventListener('mouseup', () => {
+  if (isLbDragging) {
+    isLbDragging = false;
+    lbViewport.classList.remove('grabbing');
+  }
+});
+
+// 双击图片快速在适应窗口与放大之间切换
+lbImg.addEventListener('dblclick', (e) => {
+  e.stopPropagation();
+  if (Math.abs(S.lbScale - 1.0) < 0.15) {
+    S.lbScale = 2.0;
+  } else {
+    S.lbScale = 1.0;
+    S.lbPanX = 0;
+    S.lbPanY = 0;
+  }
+  applyLightboxTransform(true);
+});
+
+lb.onclick = (e) => { 
+  if (e.target === lb || e.target === lbViewport) closeLightbox(); 
+};
+
 document.addEventListener('keydown', (e) => {
   if (!lb.classList.contains('active')) return;
   if (e.key === 'Escape') closeLightbox();
@@ -738,6 +939,10 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowRight') document.getElementById('lbNext').click();
   else if (e.key === 'r' || e.key === 'R') rotateLightbox(90);
   else if (e.key === 'l' || e.key === 'L') rotateLightbox(-90);
+  else if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') zoomLightbox(1.25, true);
+  else if (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract') zoomLightbox(0.8, true);
+  else if (e.key === '0') resetLightboxZoom();
+  else if (e.key === '1') actualSizeLightbox();
 });
 
 /* ---------- Tabs 切换 (权利要求书 vs 说明书全文) ---------- */
@@ -753,8 +958,13 @@ function initTabs() {
   const bGlossary = document.getElementById('bGlossary');
   if (bGlossary) bGlossary.textContent = glossaryList.length;
 
-  // 默认：若有权利要求则默认选 claims，否则选 desc
-  if (claimItems.length === 0 && descItems.length > 0) {
+  // 智能默认 Tab 策略：若批注全部在说明书中（权利要求0批注），优先默认展示说明书视图
+  const claimMarks = (S.marks || []).filter(m => String(m.no).startsWith('权') || /^\d{1,3}$/.test(String(m.no).trim()));
+  const descMarks = (S.marks || []).filter(m => /^\d{4}$/.test(String(m.no).trim()));
+
+  if (claimMarks.length === 0 && descMarks.length > 0) {
+    S.curTab = 'desc';
+  } else if (claimItems.length === 0 && descItems.length > 0) {
     S.curTab = 'desc';
   } else {
     S.curTab = 'claims';
@@ -778,6 +988,10 @@ function updateTabUI() {
 
 /* ---------- 本地批注存储 ---------- */
 function loadAll(){
+  // 防污染权威加载机制：可迁移版以文件内嵌的固化批注为唯一真理
+  const inlinedMarks = Array.isArray(window.__PRELOADED_MARKS__) ? window.__PRELOADED_MARKS__ : [];
+  
+  // 检查本地是否存在本文件的修改缓存
   let localMarks = [];
   try{
     const raw = localStorage.getItem(LS_KEY);
@@ -787,25 +1001,19 @@ function loadAll(){
     }
   }catch(e){ console.warn('读取本地批注失败', e); }
 
-  const inlinedMarks = Array.isArray(window.__PRELOADED_MARKS__) ? window.__PRELOADED_MARKS__ : [];
+  // 如果本地缓存的批注集合与内嵌批注的 Key 严重不匹配（说明存在不同版本/旧段号污染），直接以文件内嵌为准并清洗本地缓存
+  const inlinedKeySet = new Set(inlinedMarks.map(m => m.key));
+  const hasInvalidLocal = localMarks.some(m => !inlinedKeySet.has(m.key));
+  
+  if(hasInvalidLocal || localMarks.length === 0){
+    // 纯净模式：完全使用文件内嵌批注
+    S.marks = JSON.parse(JSON.stringify(inlinedMarks));
+    try{ localStorage.setItem(LS_KEY, JSON.stringify({ v:1, docId:DOC_ID, savedAt:new Date().toISOString(), marks:S.marks })); }catch(e){}
+  } else {
+    // 只有当本地修改是针对当前新 Key 的编辑时才采纳
+    S.marks = JSON.parse(JSON.stringify(localMarks));
+  }
 
-  // 双向智能增量合并：确保多电脑流转时，文件内嵌的新批注与本地旧缓存只增不减
-  const map = new Map();
-  inlinedMarks.forEach(m => { if(m && m.key) map.set(m.key, {...m}); });
-  localMarks.forEach(m => {
-    if(!m || !m.key) return;
-    if(!map.has(m.key)){
-      map.set(m.key, {...m});
-    } else {
-      const exist = map.get(m.key);
-      if((m.note || '').trim() && !(exist.note || '').trim()){
-        map.set(m.key, {...exist, ...m});
-      }
-    }
-  });
-
-  S.marks = Array.from(map.values());
-  saveAll();
   checkDirtyState();
 }
 function saveAll(){
