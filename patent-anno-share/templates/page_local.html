@@ -1322,14 +1322,16 @@ function toast(msg, ms=2500, err=false){
 }
 
 /* ---------- 批注导出 / 导入 ---------- */
-async function saveBlobWithPicker(blob, defaultName, typeDesc, ext) {
+async function saveBlobWithPicker(blob, defaultName, typeDesc, mimeType, ext) {
   if (window.showSaveFilePicker) {
     try {
+      const cleanMime = (mimeType || 'application/octet-stream').split(';')[0].trim();
+      const extList = Array.isArray(ext) ? ext : [ext];
       const handle = await window.showSaveFilePicker({
         suggestedName: defaultName,
         types: [{
           description: typeDesc,
-          accept: { [blob.type || 'application/octet-stream']: [ext] }
+          accept: { [cleanMime]: extList }
         }]
       });
       const writable = await handle.createWritable();
@@ -1367,7 +1369,7 @@ if (btnExportHtml) {
       '<span class="mode-badge portable" id="modeBadge" title="当前为可迁移完整版，已自带固化所有批注，可在任何电脑上离线双击查看！">🚀 可迁移版</span>');
 
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const ok = await saveBlobWithPicker(blob, DOC_ID + '_中英对照_[可迁移版].html', 'HTML 文件', '.html');
+    const ok = await saveBlobWithPicker(blob, DOC_ID + '_中英对照_[可迁移版].html', 'HTML 文件', 'text/html', '.html');
     if (ok) {
       window.__PRELOADED_MARKS__ = JSON.parse(JSON.stringify(S.marks));
       checkDirtyState();
@@ -1382,7 +1384,7 @@ document.getElementById('btnExport').onclick = async () => {
     marks: S.marks
   };
   const blob = new Blob([JSON.stringify(o, null, 2)], {type:'application/json;charset=utf-8'});
-  const ok = await saveBlobWithPicker(blob, DOC_ID + '_批注.json', 'JSON 批注文件', '.json');
+  const ok = await saveBlobWithPicker(blob, DOC_ID + '_批注.json', 'JSON 批注文件', 'application/json', '.json');
   if (ok) toast('已导出批注文件');
 };
 document.getElementById('btnImport').onclick = () => document.getElementById('fileIn').click();
@@ -1415,7 +1417,7 @@ document.getElementById('btnMd').onclick = async () => {
     L.push(`| ${i+1} | 【${m.no}】 | ${SIDE[m.side]} | ${(m.text||'').replace(/\|/g,'\\|')} | ${(m.note||'').replace(/\|/g,'\\|')} | ${m.author||''} |`);
   });
   const blob = new Blob([L.join('\n')], {type:'text/markdown;charset=utf-8'});
-  const ok = await saveBlobWithPicker(blob, DOC_ID + '_批注汇总.md', 'Markdown 文件', '.md');
+  const ok = await saveBlobWithPicker(blob, DOC_ID + '_批注汇总.md', 'Markdown 文件', 'text/markdown', '.md');
   if (ok) toast('已导出 Markdown 汇总表');
 };
 
