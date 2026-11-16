@@ -413,6 +413,18 @@ table.batch-table tr:hover {
       </div>
     </div>
 
+    <!-- 通用配置：附加翻译提示词 / 术语定制 (Extra Prompt) -->
+    <div class="form-group" style="margin-top: 14px; margin-bottom: 0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <label for="extraPrompt" style="margin-bottom:0; font-size:13px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:6px;">
+          <span>💡 附加翻译提示词 / 术语定制 (可选)</span>
+        </label>
+        <button class="btn btn-secondary btn-sm" id="btnSavePrompt" type="button" style="font-size:11.5px; padding:2px 8px;">保存提示词</button>
+      </div>
+      <textarea id="extraPrompt" rows="2" style="min-height:55px; font-size:12.5px; padding:8px 10px;" placeholder="在此输入特定词语的翻译约定或特殊要求（大模型翻译时将作为最高优先级严格遵守）&#10;例如：&#10;atomizer -> 雾化器&#10;cartridge -> 烟弹&#10;wick -> 导液芯"></textarea>
+      <div class="hint">可输入特定术语翻译对照或翻译要求，对单篇和批量生成全量生效，确保全篇术语高度规范统一。</div>
+    </div>
+
     <hr style="border:0; border-top:1px solid var(--border); margin: 18px 0;">
 
     <!-- 单篇模式面板 -->
@@ -519,6 +531,9 @@ async function init() {
     if (data.target_lang) {
       document.getElementById('targetLang').value = data.target_lang;
     }
+    if (data.extra_prompt) {
+      document.getElementById('extraPrompt').value = data.extra_prompt;
+    }
   } catch (e) {}
 }
 
@@ -565,20 +580,41 @@ document.getElementById('btnSaveKey').addEventListener('click', async () => {
   const btn = document.getElementById('btnSaveKey');
   const key = document.getElementById('apiKey').value.trim();
   const targetLang = document.getElementById('targetLang').value.trim() || '中文';
+  const extraPrompt = document.getElementById('extraPrompt').value.trim();
   btn.disabled = true;
   btn.textContent = '保存中...';
   try {
     await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: key, target_lang: targetLang })
+      body: JSON.stringify({ api_key: key, target_lang: targetLang, extra_prompt: extraPrompt })
     });
-    alert('已成功保存配置（API 密钥与译文目标语言）！');
+    alert('已成功保存配置（API 密钥、目标语言与附加提示词）！');
   } catch (e) {
     alert('保存失败: ' + e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = '保存密钥';
+  }
+});
+
+document.getElementById('btnSavePrompt').addEventListener('click', async () => {
+  const btn = document.getElementById('btnSavePrompt');
+  const extraPrompt = document.getElementById('extraPrompt').value.trim();
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  try {
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ extra_prompt: extraPrompt })
+    });
+    alert('已成功保存附加翻译提示词！');
+  } catch (e) {
+    alert('保存失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '保存提示词';
   }
 });
 
@@ -709,10 +745,12 @@ async function startJob(endpoint, payload) {
   const apiKey = document.getElementById('apiKey').value.trim();
   const withFigures = document.getElementById('withFigures').checked;
   const targetLang = document.getElementById('targetLang').value.trim() || '中文';
+  const extraPrompt = document.getElementById('extraPrompt').value.trim();
 
   payload.api_key = apiKey;
   payload.with_figures = withFigures;
   payload.target_lang = targetLang;
+  payload.extra_prompt = extraPrompt;
 
   document.getElementById('btnStartSingle').disabled = true;
   document.getElementById('btnStartBatch').disabled = true;

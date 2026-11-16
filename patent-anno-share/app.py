@@ -46,7 +46,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 import openpyxl
-from fetch_share import fetch_patent_from_share_url, export_as_markdown, export_as_data_json
+from fetch_share import fetch_patent_from_share_url, export_as_markdown, export_as_data_json, verify_and_heal_description
 from deepseek_translator import DeepSeekTranslator, translate_patent_data_sync, load_config, save_config
 from batch_parser import parse_excel_file, parse_text_links
 
@@ -212,17 +212,29 @@ def process_single_patent(url, api_key=None, out_dir=None, with_figures=True, ta
     title = bib.get('title') or ''
 
     # 2. 调用 DeepSeek 翻译（若可用）
-    translator = DeepSeekTranslator(api_key=api_key, target_lang=target_lang)
+    translator = DeepSeekTranslator(api_key=api_key, target_lang=target_lang, extra_prompt=extra_prompt)
     if translator.is_configured() and patent_data.get('is_foreign', True):
-        log(f"[+] [{pn}] 检测到 DeepSeek 配置，正在启动大模型高精专利翻译 (目标语言: {translator.target_lang})...")
+        extra_hint = f" (含附加提示词: {len(translator.extra_prompt)} 字)" if translator.extra_prompt else ""
+        log(f"[+] [{pn}] 检测到 DeepSeek 配置，正在启动大模型高精专利翻译 (目标语言: {translator.target_lang}{extra_hint})...")
         def on_prog(cur, tot, itype):
             if prog_cb:
                 prog_cb(cur, tot, itype)
-        patent_data = translate_patent_data_sync(patent_data, api_key=api_key, progress_callback=on_prog, target_lang=translator.target_lang)
+        patent_data = translate_patent_data_sync(patent_data, api_key=api_key, progress_callback=on_prog, target_lang=translator.target_lang, extra_prompt=translator.extra_prompt)
         qual = patent_data.get("translation_quality", {})
         log(f"[✔] [{pn}] 翻译门禁质检报告: 权项覆盖率 {qual.get('claim_coverage', '-')}, 说明书覆盖率 {qual.get('desc_coverage', '-')}")
         from fetch_share import extract_reference_numerals
         patent_data['glossary'] = extract_reference_numerals(patent_data.get('claims', []), patent_data.get('description', []))
+
+    # 2.2 说明书段号一致性校验与门禁自检（Gatekeeper）
+    desc_list = patent_data.get('description', [])
+    if desc_list:
+        healed_desc, heal_report = verify_and_heal_description(desc_list, patent_id=pn)
+        patent_data['description'] = healed_desc
+        patent_data['continuity'] = heal_report
+        log(f"[✔] [{pn}] 智慧芽段号门禁质检: 范围={heal_report.get('range')}, 总段数={heal_report.get('count')}, 缺口={heal_report.get('gaps') or '无'}")
+        if heal_report.get('actions'):
+            for act in heal_report['actions']:
+                log(f"    -> 说明书段号纠偏: {act}")
 
     inter_dir = os.path.join(output_dir, "_intermediates")
     os.makedirs(inter_dir, exist_ok=True)
@@ -253,6 +265,17 @@ def process_single_patent(url, api_key=None, out_dir=None, with_figures=True, ta
     with open(data_path, "r", encoding="utf-8") as f:
         data_obj = json.load(f)
 
+    # 安全清洗 data_obj 中所有字符串的非法控制字符（除 \n, \t 外的 ASCII < 32），杜绝 JSON 解析报错
+    def sanitize_obj(obj):
+        if isinstance(obj, str):
+            return "".join(c for c in obj if c in ('\n', '\t') or ord(c) >= 32)
+        elif isinstance(obj, list):
+            return [sanitize_obj(x) for x in obj]
+        elif isinstance(obj, dict):
+            return {k: sanitize_obj(v) for k, v in obj.items()}
+        return obj
+
+    data_obj = sanitize_obj(data_obj)
     data_js = json.dumps(data_obj, ensure_ascii=False, indent=1).replace("</", "<\\/")
 
     def h(s):
@@ -283,7 +306,7 @@ def process_single_patent(url, api_key=None, out_dir=None, with_figures=True, ta
     }
 
 
-def run_single_pipeline_worker(url, api_key=None, out_dir=None, with_figures=True, target_lang=None):
+def run_single_pipeline_worker(url, api_key=None, out_dir=None, with_figures=True, target_lang=None, extra_prompt=None):
     """单篇后台任务执行器"""
     try:
         STATE.reset_single()
@@ -293,6 +316,7 @@ def run_single_pipeline_worker(url, api_key=None, out_dir=None, with_figures=Tru
             out_dir=out_dir,
             with_figures=with_figures,
             target_lang=target_lang,
+            extra_prompt=extra_prompt,
             log_cb=STATE.add_log,
             prog_cb=STATE.update_single_progress
         )
@@ -302,7 +326,7 @@ def run_single_pipeline_worker(url, api_key=None, out_dir=None, with_figures=Tru
         STATE.add_log(f"[!] 处理异常: {e}")
 
 
-def run_batch_pipeline_worker(tasks, api_key=None, out_dir=None, with_figures=True, target_lang=None):
+def run_batch_pipeline_worker(tasks, api_key=None, out_dir=None, with_figures=True, target_lang=None, extra_prompt=None):
     """批量后台任务执行器"""
     try:
         STATE.reset_batch(tasks)
@@ -329,6 +353,7 @@ def run_batch_pipeline_worker(tasks, api_key=None, out_dir=None, with_figures=Tr
                     out_dir=out_dir,
                     with_figures=with_figures,
                     target_lang=target_lang,
+                    extra_prompt=extra_prompt,
                     log_cb=STATE.add_log,
                     prog_cb=None
                 )
@@ -416,11 +441,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         if path == "/api/config":
             new_key = data.get("api_key", "").strip()
             new_lang = data.get("target_lang", "").strip()
+            new_prompt = data.get("extra_prompt", None)
             cfg = load_config()
             if new_key:
                 cfg["api_key"] = new_key
             if new_lang:
                 cfg["target_lang"] = new_lang
+            if new_prompt is not None:
+                cfg["extra_prompt"] = new_prompt.strip()
             save_config(cfg)
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -446,13 +474,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             api_key = data.get("api_key", "").strip() or None
             with_figures = bool(data.get("with_figures", True))
             target_lang = data.get("target_lang", "中文").strip() or "中文"
+            extra_prompt = data.get("extra_prompt", "").strip() or None
             if not url:
                 self.send_response(400)
                 self.end_headers()
                 self.wfile.write(b'{"ok":false,"error":"URL cannot be empty"}')
                 return
 
-            t = threading.Thread(target=run_single_pipeline_worker, args=(url, api_key, None, with_figures, target_lang))
+            t = threading.Thread(target=run_single_pipeline_worker, args=(url, api_key, None, with_figures, target_lang, extra_prompt))
             t.daemon = True
             t.start()
 

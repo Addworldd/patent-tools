@@ -397,13 +397,49 @@ JS_EXTRACT_CLAIMS_TRANSLATION = r'''() => {
 }'''
 
 
-JS_EXTRACT_DESC_ORIGINAL = r'''() => {
+JS_EXTRACT_DESC_ORIGINAL = r"""() => {
     function toHankaku(str) {
         if (!str) return '';
         return str.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
     }
 
-    const HEADING_RE = /^(?:【\s*(?:技术领域|所属技术领域|背景技术|技术背景|发明内容|实用新型内容|外观设计内容|发明公开|技术方案|有益效果|附图说明|附图简要说明|具体实施方式|具体实施例|实施方式|实施例|符号の説明|符号の簡単な説明|부호의 설명)\s*】|(?:技术领域|背景技术|技术背景|发明内容|实用新型内容|外观设计内容|附图说明|具体实施方式|实施方式)\s*[:：]?|(?:Technical\s+Field|Background(?:\s+of\s+the\s+Invention|\s+Art)?|Summary(?:\s+of\s+the\s+Invention)?|Brief\s+Description\s+of(?:\s+the)?\s+Drawings|Detailed\s+Description(?:\s+of(?:\s+the)?\s+(?:Preferred\s+)?Embodiments)?)\s*[:：]?|【\s*(?:技術分野|背景技術|発明の概要|発明の効果|図面の簡単な説明|発明を実施するための形態|実施例|符号の説明)\s*】|【\s*(?:기술분야|배경기술|발명의\s*내용|도면의\s*간단한\s*설명|발명을\s*실시하기\s*위한\s*구체적인\s*내용|부호의\s*설명)\s*】)$/i;
+    const HEADING_RE = /^(?:【\s*(?:技术领域|所属技术领域|背景技术|技术背景|现有技术|发明内容|实用新型内容|外观设计内容|发明公开|技术方案|有益效果|附图说明|附图简要说明|具体实施方式|具体实施例|实施方式|实施例|符号の説明|符号の簡単な説明|부호의\s*설명|도면의\s*간단한\s*설명|발명의\s*내용|배경기술|기술분야|발명을\s*실시하기\s*위한\s*구체적인\s*내용)\s*】|(?:技术领域|背景技术|技术背景|发明内容|实用新型内容|外观设计内容|附图说明|附图简要说明|具体实施方式|实施方式|实施例)\s*[:：]?|(?:TECHNICAL\s+FIELD|BACKGROUND(?:\s+OF\s+THE\s+INVENTION|\s+ART)?|SUMMARY(?:\s+OF\s+THE\s+INVENTION)?|BRIEF\s+DESCRIPTION\s+OF(?:\s+THE)?\s+DRAWINGS|DETAILED\s+DESCRIPTION(?:\s+OF(?:\s+THE)?\s+(?:PREFERRED\s+)?EMBODIMENTS)?|FIELD\s+OF\s+THE\s+INVENTION|DESCRIPTION\s+OF\s+EMBODIMENTS|CROSS-REFERENCE\s+TO\s+RELATED\s+APPLICATIONS)\s*[:：\.]?|【\s*(?:技術分野|背景技術|発明の概要|発明の効果|図面の簡単な説明|発明を実施するための形態|実施例|符号の説明)\s*】|【\s*(?:기술분야|배경기술|발명의\s*내용|도면의\s*간단한\s*설명|발명을\s*실시하기\s*위한\s*구체적인\s*내용|부호의\s*설명)\s*】|(?:배\s*경\s*기\s*술|기\s*술\s*분\s*야|발\s*명\s*의\s*내\s*용|도\s*면\s*의\s*간\s*단\s*한\s*설\s*명|실\s*시\s*예))\s*$/i;
+
+    function extractOfficialNum(node, rawText) {
+        // 1. 节点内部专属标号标签 (如 <b class="d_n">[0001]</b> 或 span.paragraph-num)
+        const b = node.querySelector('b.d_n, span.paragraph-num, span.desc-p-num, span.num');
+        if (b) {
+            const bt = toHankaku(b.innerText || '');
+            const m = bt.match(/\d{1,4}/);
+            if (m) return parseInt(m[0], 10);
+        }
+
+        const cleanT = toHankaku(rawText).trim();
+
+        // 2. 文本首部带括号的标号: [0001], 【0001】, (0001), ［0001］
+        const mBracket = cleanT.match(/^(?:【|\[|［|〔|\(|（)\s*(\d{1,4})\s*(?:】|\]|］|〕|\)|）)/);
+        if (mBracket) {
+            return parseInt(mBracket[1], 10);
+        }
+
+        // 3. 文本首部无括号的裸 4 位数字标号: 0001, 0002...
+        const mBare4 = cleanT.match(/^([0-9]{4})(?:\s+|[\.、:：\t]|$)/);
+        if (mBare4) {
+            const afterText = cleanT.slice(mBare4[0].length).trim();
+            if (!/^[年月日%℃度元]/.test(afterText)) {
+                return parseInt(mBare4[1], 10);
+            }
+        }
+
+        return null;
+    }
+
+    function stripParaPrefix(rawText) {
+        let t = toHankaku(rawText).trim();
+        t = t.replace(/^(?:【|\[|［|〔|\(|（)\s*[０-９\d]{1,4}\s*(?:】|\]|］|〕|\)|）)\s*/, '');
+        t = t.replace(/^[０-９\d]{4}(?:\s+|[\.、:：\t])\s*/, '');
+        return t.trim();
+    }
 
     // 强制锁死单栏排版，屏蔽并排分栏
     const style = document.createElement('style');
@@ -440,70 +476,65 @@ JS_EXTRACT_DESC_ORIGINAL = r'''() => {
     // 方案 1: DOM 节点级提取 (遍历 div[p] 或 [data-p])
     const pNodes = Array.from(container.querySelectorAll('div[p], [data-p]'));
     if (pNodes.length > 0) {
-        // 先探测整篇说明书是否包含官方显式段号
-        const hasOfficialParagraphs = container.querySelectorAll('b.d_n, span.paragraph-num, span.desc-p-num').length > 0 ||
-            pNodes.some(n => /^(?:【|\[|［|〔|\(|（)\s*\d{1,4}\s*(?:】|\]|］|〕|\)|）)/.test(toHankaku((n.innerText || '').trim())));
+        // 先探测整篇说明书是否包含官方显式段号（涵盖括号型与无括号 4 位数字型）
+        const hasOfficialParagraphs = container.querySelectorAll('b.d_n, span.paragraph-num, span.desc-p-num, span.num').length > 0 ||
+            pNodes.some(n => {
+                const t = toHankaku((n.innerText || '').trim());
+                return /^(?:【|\[|［|〔|\(|（)\s*\d{1,4}\s*(?:】|\]|］|〕|\)|）)/.test(t) ||
+                       /^(?:0[0-9]{3}|[1-9][0-9]{3})(?:\s+|[\.、:：\t]|$)/.test(t);
+            });
 
-        let pendingHeading = '';
-        let fallbackSeq = 0; // 仅当整篇文献无官方标号时使用的备用顺序号
+        let pendingHeadings = [];
+        let fallbackSeq = 0; // 仅当整篇文献完全无官方标号时使用的备用顺序号
 
         pNodes.forEach((node) => {
             const rawText = (node.innerText || '').trim();
             if (!rawText) return;
 
-            // 1. 检查节点内是否自带官方段号 (如 <b class="d_n">[0001]</b> 或 span.paragraph-num)
-            let officialNum = '';
-            const b = node.querySelector('b.d_n, span.paragraph-num, span.desc-p-num');
-            if (b) {
-                const bt = toHankaku(b.innerText || '');
-                const m = bt.match(/\d{1,4}/);
-                if (m) officialNum = m[0];
-            }
+            const officialNum = extractOfficialNum(node, rawText);
 
-            // 2. 检查文本首部是否自带官方标号，如 [0001]、[1]、(0001)、【0001】、［0001］
-            if (!officialNum) {
-                const headMatch = toHankaku(rawText).match(/^(?:【|\[|［|〔|\(|（)\s*(\d{1,4})\s*(?:】|\]|］|〕|\)|）)/);
-                if (headMatch) {
-                    officialNum = headMatch[1];
-                }
-            }
-
-            // 3. 检查是否为纯节标题（如 【背景技术】、【发明内容】 等）
+            // 检查是否为纯节标题（【背景技术】、【发明内容】、BACKGROUND 等）
             // 节标题绝对不分配独立段号，暂存并合并到紧随其后的首个正文段落
-            if (!officialNum && HEADING_RE.test(rawText)) {
-                pendingHeading = rawText.startsWith('【') ? rawText : `【${rawText}】`;
+            const isHeading = officialNum == null && (
+                HEADING_RE.test(rawText) ||
+                (rawText.length <= 40 && !/[。；;\.]/.test(rawText) && (rawText.startsWith('【') || /^[A-Z\s]{3,35}$/.test(rawText)))
+            );
+
+            if (isHeading) {
+                let hText = rawText.startsWith('【') ? rawText : `【${rawText}】`;
+                pendingHeadings.push(hText);
                 return;
             }
 
-            // 如果既无官方段号，文字长度极短（<=30 字）且形似发明名称或标题（且出现在开头），跳过
-            if (!officialNum && paras.length === 0 && rawText.length <= 30 && !/[。；;\.]/.test(rawText)) {
-                return;
-            }
-
-            // 4. 若文献本身是官方标号文献，但当前节点没有官方段号（如德文附图列表 Fig. 1~8、公式或续行）
-            if (hasOfficialParagraphs && !officialNum) {
+            // 若整篇文献存在官方标号，但当前节点没有官方段号（如德文附图列表、未标号续行、公式或开头发明名称）：
+            if (hasOfficialParagraphs && officialNum == null) {
                 if (paras.length > 0) {
+                    // 追加合并至上一段
                     paras[paras.length - 1].text += '\n' + rawText;
+                } else {
+                    // 开头出现的无号内容吸附至随后的首个带号段落
+                    pendingHeadings.push(rawText);
                 }
-                return;
+                return; // 严禁执行 fallbackSeq++
             }
 
-            // 5. 确定该段的最终标准段号 [XXXX]
+            // 确定该段的最终标准段号 [XXXX]
             let pStr = '';
-            if (officialNum) {
-                pStr = String(parseInt(officialNum, 10)).padStart(4, '0');
+            if (officialNum != null) {
+                pStr = String(officialNum).padStart(4, '0');
             } else {
                 fallbackSeq++;
                 pStr = String(fallbackSeq).padStart(4, '0');
             }
 
-            // 6. 清理正文中的前缀段号
-            let cleanBody = rawText.replace(/^(?:【|\[|［|〔|\(|（)\s*[０-９\d]{1,4}\s*(?:】|\]|］|〕|\)|）)\s*/, '').trim();
+            // 清理正文中的前缀段号
+            let cleanBody = stripParaPrefix(rawText);
 
-            // 若之前有暂存的节标题，前置合并到该正文段落中（保证视觉上节标题不丢失，但段号完全与智慧芽官方对齐）
-            if (pendingHeading) {
-                cleanBody = pendingHeading + '\n' + cleanBody;
-                pendingHeading = '';
+            // 若之前有暂存的节标题或开头无号前缀，前置合并到该正文段落中（保证视觉上节标题不丢失，但段号与智慧芽官方严格对齐）
+            if (pendingHeadings.length > 0) {
+                const prefix = pendingHeadings.join('\n');
+                cleanBody = prefix + '\n' + cleanBody;
+                pendingHeadings = [];
             }
 
             if (cleanBody) {
@@ -515,87 +546,117 @@ JS_EXTRACT_DESC_ORIGINAL = r'''() => {
     // 方案 2: 若未找到专门结构，使用全局文本正则切分兜底
     if (paras.length === 0) {
         const rawText = (container.innerText || '').trim();
-        const re = /(?:^|\n)\s*(?:【|\[|［|〔|\(|（)\s*([０-９\d]{1,4})\s*(?:】|\]|］|〕|\)|）)\s*([\s\S]*?)(?=(?:\n\s*(?:【|\[|［|〔|\(|（)\s*[０-９\d]{1,4}\s*(?:】|\]|］|〕|\)|）))|$)/g;
+        const re = /(?:^|\n)\s*(?:(?:【|\[|［|〔|\(|（)\s*([０-９\d]{1,4})\s*(?:】|\]|］|〕|\)|）)|([０-９\d]{4})(?:\s+|[\.、:：\t]))\s*([\s\S]*?)(?=(?:\n\s*(?:(?:【|\[|［|〔|\(|（)\s*[０-９\d]{1,4}\s*(?:】|\]|］|〕|\)|）)|[０-９\d]{4}(?:\s+|[\.、:：\t])))|$)/g;
         let m;
         while ((m = re.exec(rawText)) !== null) {
-            const numHalf = toHankaku(m[1]);
+            const rawNum = m[1] || m[2];
+            const numHalf = toHankaku(rawNum);
             const pStr = String(parseInt(numHalf, 10)).padStart(4, '0');
-            const body = m[2].replace(/\s+\n/g, '\n').trim();
+            const body = (m[3] || '').replace(/\s+\n/g, '\n').trim();
             if (body) paras.push({ no: pStr, text: body });
         }
     }
 
     return paras;
-}'''
+}"""
 
 
-JS_EXTRACT_DESC_TRANSLATION = r'''() => {
+JS_EXTRACT_DESC_TRANSLATION = r"""() => {
     function toHankaku(str) {
         if (!str) return '';
         return str.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
     }
 
-    const HEADING_RE = /^(?:【\s*(?:技术领域|所属技术领域|背景技术|技术背景|发明内容|实用新型内容|外观设计内容|发明公开|技术方案|有益效果|附图说明|附图简要说明|具体实施方式|具体实施例|实施方式|实施例|符号の説明|符号の簡単な説明|부호의 설명)\s*】|(?:技术领域|背景技术|技术背景|发明内容|实用新型内容|外观设计内容|附图说明|具体实施方式|实施方式)\s*[:：]?|(?:Technical\s+Field|Background(?:\s+of\s+the\s+Invention|\s+Art)?|Summary(?:\s+of\s+the\s+Invention)?|Brief\s+Description\s+of(?:\s+the)?\s+Drawings|Detailed\s+Description(?:\s+of(?:\s+the)?\s+(?:Preferred\s+)?Embodiments)?)\s*[:：]?|【\s*(?:技術分野|背景技術|発明の概要|発明の効果|図面の簡単な説明|発明を実施するための形態|実施例|符号の説明)\s*】|【\s*(?:기술분야|배경기술|발명의\s*내용|도면의\s*간단한\s*설명|발명을\s*실시하기\s*위한\s*구체적인\s*내용|부호의\s*설명)\s*】)$/i;
+    const HEADING_RE = /^(?:【\s*(?:技术领域|所属技术领域|背景技术|技术背景|现有技术|发明内容|实用新型内容|外观设计内容|发明公开|技术方案|有益效果|附图说明|附图简要说明|具体实施方式|具体实施例|实施方式|实施例|符号の説明|符号の簡単な説明|부호의\s*설명|도면의\s*간단한\s*설명|발명의\s*내용|배경기술|기술분야|발명을\s*실시하기\s*위한\s*구체적인\s*내용)\s*】|(?:技术领域|背景技术|技术背景|发明内容|实用新型内容|外观设计内容|附图说明|附图简要说明|具体实施方式|实施方式|实施例)\s*[:：]?|(?:TECHNICAL\s+FIELD|BACKGROUND(?:\s+OF\s+THE\s+INVENTION|\s+ART)?|SUMMARY(?:\s+OF\s+THE\s+INVENTION)?|BRIEF\s+DESCRIPTION\s+OF(?:\s+THE)?\s+DRAWINGS|DETAILED\s+DESCRIPTION(?:\s+OF(?:\s+THE)?\s+(?:PREFERRED\s+)?EMBODIMENTS)?|FIELD\s+OF\s+THE\s+INVENTION|DESCRIPTION\s+OF\s+EMBODIMENTS|CROSS-REFERENCE\s+TO\s+RELATED\s+APPLICATIONS)\s*[:：\.]?|【\s*(?:技術分野|背景技術|発明の概要|発明の効果|図面の簡単な説明|発明を実施するための形態|実施例|符号の説明)\s*】|【\s*(?:기술분야|배경기술|발명의\s*내용|도면의\s*간단한\s*설명|발명을\s*실시하기\s*위한\s*구체적인\s*내용|부호의\s*설명)\s*】|(?:배\s*경\s*기\s*술|기\s*술\s*분\s*야|발\s*명\s*의\s*내\s*용|도\s*면\s*의\s*간\s*단\s*한\s*설\s*명|실\s*시\s*예))\s*$/i;
+
+    function extractOfficialNum(node, rawText) {
+        const b = node.querySelector('b.d_n, span.paragraph-num, span.desc-p-num, span.num');
+        if (b) {
+            const bt = toHankaku(b.innerText || '');
+            const m = bt.match(/\d{1,4}/);
+            if (m) return parseInt(m[0], 10);
+        }
+
+        const cleanT = toHankaku(rawText).trim();
+
+        const mBracket = cleanT.match(/^(?:【|\[|［|〔|\(|（)\s*(\d{1,4})\s*(?:】|\]|］|〕|\)|）)/);
+        if (mBracket) {
+            return parseInt(mBracket[1], 10);
+        }
+
+        const mBare4 = cleanT.match(/^([0-9]{4})(?:\s+|[\.、:：\t]|$)/);
+        if (mBare4) {
+            const afterText = cleanT.slice(mBare4[0].length).trim();
+            if (!/^[年月日%℃度元]/.test(afterText)) {
+                return parseInt(mBare4[1], 10);
+            }
+        }
+
+        return null;
+    }
+
+    function stripParaPrefix(rawText) {
+        let t = toHankaku(rawText).trim();
+        t = t.replace(/^(?:【|\[|［|〔|\(|（)\s*[０-９\d]{1,4}\s*(?:】|\]|］|〕|\)|）)\s*/, '');
+        t = t.replace(/^[０-９\d]{4}(?:\s+|[\.、:：\t])\s*/, '');
+        return t.trim();
+    }
 
     const trans = document.querySelector('.translation-block') || document.body;
     const paras = [];
 
     const pNodes = Array.from(trans.querySelectorAll('div[p], [data-p]'));
     if (pNodes.length > 0) {
-        const hasOfficialParagraphs = trans.querySelectorAll('b.d_n, span.paragraph-num, span.desc-p-num').length > 0 ||
-            pNodes.some(n => /^(?:【|\[|［|〔|\(|（)\s*\d{1,4}\s*(?:】|\]|］|〕|\)|）)/.test(toHankaku((n.innerText || '').trim())));
+        const hasOfficialParagraphs = trans.querySelectorAll('b.d_n, span.paragraph-num, span.desc-p-num, span.num').length > 0 ||
+            pNodes.some(n => {
+                const t = toHankaku((n.innerText || '').trim());
+                return /^(?:【|\[|［|〔|\(|（)\s*\d{1,4}\s*(?:】|\]|］|〕|\)|）)/.test(t) ||
+                       /^(?:0[0-9]{3}|[1-9][0-9]{3})(?:\s+|[\.、:：\t]|$)/.test(t);
+            });
 
-        let pendingHeading = '';
+        let pendingHeadings = [];
         let fallbackSeq = 0;
 
         pNodes.forEach((node) => {
             const rawText = (node.innerText || '').trim();
             if (!rawText) return;
 
-            let officialNum = '';
-            const b = node.querySelector('b.d_n, span.paragraph-num, span.desc-p-num');
-            if (b) {
-                const bt = toHankaku(b.innerText || '');
-                const m = bt.match(/\d{1,4}/);
-                if (m) officialNum = m[0];
-            }
+            const officialNum = extractOfficialNum(node, rawText);
 
-            if (!officialNum) {
-                const headMatch = toHankaku(rawText).match(/^(?:【|\[|［|〔|\(|（)\s*(\d{1,4})\s*(?:】|\]|］|〕|\)|）)/);
-                if (headMatch) {
-                    officialNum = headMatch[1];
-                }
-            }
+            const isHeading = officialNum == null && (
+                HEADING_RE.test(rawText) ||
+                (rawText.length <= 40 && !/[。；;\.]/.test(rawText) && (rawText.startsWith('【') || /^[A-Z\s]{3,35}$/.test(rawText)))
+            );
 
-            if (!officialNum && HEADING_RE.test(rawText)) {
-                pendingHeading = rawText.startsWith('【') ? rawText : `【${rawText}】`;
+            if (isHeading) {
+                let hText = rawText.startsWith('【') ? rawText : `【${rawText}】`;
+                pendingHeadings.push(hText);
                 return;
             }
 
-            if (!officialNum && paras.length === 0 && rawText.length <= 30 && !/[。；;\.]/.test(rawText)) {
-                return;
-            }
-
-            if (hasOfficialParagraphs && !officialNum) {
+            if (hasOfficialParagraphs && officialNum == null) {
                 if (paras.length > 0) {
                     paras[paras.length - 1].text += '\n' + rawText;
+                } else {
+                    pendingHeadings.push(rawText);
                 }
                 return;
             }
 
             let pStr = '';
-            if (officialNum) {
-                pStr = String(parseInt(officialNum, 10)).padStart(4, '0');
+            if (officialNum != null) {
+                pStr = String(officialNum).padStart(4, '0');
             } else {
                 fallbackSeq++;
                 pStr = String(fallbackSeq).padStart(4, '0');
             }
 
-            let cleanBody = rawText.replace(/^(?:【|\[|［|〔|\(|（)\s*[０-９\d]{1,4}\s*(?:】|\]|］|〕|\)|）)\s*/, '').trim();
+            let cleanBody = stripParaPrefix(rawText);
 
-            if (pendingHeading) {
-                cleanBody = pendingHeading + '\n' + cleanBody;
-                pendingHeading = '';
+            if (pendingHeadings.length > 0) {
+                const prefix = pendingHeadings.join('\n');
+                cleanBody = prefix + '\n' + cleanBody;
+                pendingHeadings = [];
             }
 
             if (cleanBody) {
@@ -606,18 +667,141 @@ JS_EXTRACT_DESC_TRANSLATION = r'''() => {
 
     if (paras.length === 0) {
         const rawText = (trans.innerText || '').trim();
-        const re = /(?:^|\n)\s*(?:【|\[|［|〔|\(|（)\s*([０-９\d]{1,4})\s*(?:】|\]|］|〕|\)|）)\s*([\s\S]*?)(?=(?:\n\s*(?:【|\[|［|〔|\(|（)\s*[０-９\d]{1,4}\s*(?:】|\]|］|〕|\)|）))|$)/g;
+        const re = /(?:^|\n)\s*(?:(?:【|\[|［|〔|\(|（)\s*([０-９\d]{1,4})\s*(?:】|\]|］|〕|\)|）)|([０-９\d]{4})(?:\s+|[\.、:：\t]))\s*([\s\S]*?)(?=(?:\n\s*(?:(?:【|\[|［|〔|\(|（)\s*[０-９\d]{1,4}\s*(?:】|\]|］|〕|\)|）)|[０-９\d]{4}(?:\s+|[\.、:：\t])))|$)/g;
         let m;
         while ((m = re.exec(rawText)) !== null) {
-            const numHalf = toHankaku(m[1]);
+            const rawNum = m[1] || m[2];
+            const numHalf = toHankaku(rawNum);
             const pStr = String(parseInt(numHalf, 10)).padStart(4, '0');
-            const body = m[2].trim();
+            const body = (m[3] || '').trim();
             if (body) paras.push({ no: pStr, text: body });
         }
     }
 
     return paras;
-}'''
+}"""
+
+
+def verify_and_heal_description(paras, patent_id=""):
+    """
+    智慧芽说明书段号一致性校验与自适应对齐门禁（Gatekeeper & Auto-Alignment）
+    对说明书段落执行全自动体检与智能修复：
+    1. 控制字符清洗（杜绝 JSON 解析崩溃和 HTML 标签切换卡死）
+    2. 查重与文本无损融合（多节点同段号合并）
+    3. 孤立标题行识别与下移吸附（消除标题占用独立段号导致的错位）
+    4. 段号起始基准对齐与平移纠偏（保证从 0001 连续递增）
+    5. 返回修复后的干净段落列表与质检指标字典
+    """
+    if not paras:
+        return paras, {"status": "empty", "range": "none", "count": 0, "actions": []}
+
+    actions = []
+
+    # 1. 控制字符安全清洗
+    cleaned = []
+    for p in paras:
+        no = str(p.get("no", "")).strip()
+        txt = p.get("text", "")
+        safe_txt = "".join(c for c in txt if c in ('\n', '\t') or ord(c) >= 32).strip()
+        cleaned.append({"no": no, "text": safe_txt})
+
+    # 2. 查重与同段号文本无损拼接
+    deduped = []
+    no_to_idx = {}
+    for p in cleaned:
+        no = p["no"]
+        if no in no_to_idx:
+            idx = no_to_idx[no]
+            deduped[idx]["text"] += "\n" + p["text"]
+            actions.append(f"段号 [{no}] 出现重复节点，已执行无损文本合并")
+        else:
+            no_to_idx[no] = len(deduped)
+            deduped.append(p)
+
+    # 3. 扫描并吸附前部的孤立纯节标题段落（杜绝标题占用独立段号导致的错位）
+    HEADING_TEXT_RE = re.compile(
+        r'^(?:【\s*(?:技术领域|所属技术领域|背景技术|技术背景|现有技术|发明内容|实用新型内容|外观设计内容|发明公开|技术方案|有益效果|附图说明|附图简要说明|具体实施方式|具体实施例|实施方式|实施例|符号の説明|符号の簡単な説明|부호의\s*설명|도면의\s*간단한\s*설명|배경기술|기술분야|발명의\s*내용|발명을\s*실시하기\s*위한\s*구체적인\s*내용)\s*】|'
+        r'(?:技术领域|背景技术|技术背景|发明内容|实用新型内容|附图说明|附图简要说明|具体实施方式|实施方式|实施例)\s*[:：]?|'
+        r'(?:TECHNICAL\s+FIELD|BACKGROUND(?:\s+OF\s+THE\s+INVENTION|\s+ART)?|SUMMARY(?:\s+OF\s+THE\s+INVENTION)?|BRIEF\s+DESCRIPTION\s+OF(?:\s+THE)?\s+DRAWINGS|DETAILED\s+DESCRIPTION(?:\s+OF(?:\s+THE)?\s+(?:PREFERRED\s+)?EMBODIMENTS)?|FIELD\s+OF\s+THE\s+INVENTION|METHOD\s+OF\s+USE|DESCRIPTION\s+OF\s+EMBODIMENTS)\s*[:：\.]?)$',
+        re.I
+    )
+
+    def is_pure_isolated_heading(text):
+        t = text.strip()
+        if not t or len(t) > 40:
+            return False
+        if any(c in t for c in ['。', '；', ';', '，', ',']):
+            return False
+        if any(c in t for c in [':', '：']) and not t.endswith((':', '：')):
+            return False
+        if re.search(r'\d{1,4}\s*[:：、\-—]', t):
+            return False
+        if HEADING_TEXT_RE.fullmatch(t):
+            return True
+        if re.fullmatch(r'[A-Z\s]{3,35}', t):
+            return True
+        return False
+
+    absorbed = []
+    i = 0
+    while i < len(deduped):
+        cur = deduped[i]
+        cur_text = cur["text"].strip()
+        if is_pure_isolated_heading(cur_text) and i + 1 < len(deduped):
+            prefix = cur_text if cur_text.startswith('【') else f"【{cur_text}】"
+            deduped[i + 1]["text"] = prefix + "\n" + deduped[i + 1]["text"].strip()
+            actions.append(f"剔除孤立标题段 [{cur['no']}]（'{cur_text}'），已自动吸附至随后的段落 [{deduped[i+1]['no']}]")
+            i += 1
+            continue
+        absorbed.append(cur)
+        i += 1
+
+    # 4. 检查数字段号的基准对齐与平移纠偏
+    int_nos = []
+    for p in absorbed:
+        if re.fullmatch(r"\d{1,4}", p["no"]):
+            int_nos.append(int(p["no"]))
+
+    if int_nos:
+        min_no = min(int_nos)
+        max_no = max(int_nos)
+        total_p = len(int_nos)
+
+        if min_no > 1 and max_no == min_no + total_p - 1:
+            offset = min_no - 1
+            for p in absorbed:
+                if re.fullmatch(r"\d{1,4}", p["no"]):
+                    p["no"] = str(int(p["no"]) - offset).zfill(4)
+            actions.append(f"检测到说明书段号整体偏移 {offset} 位（首段原为 {str(min_no).zfill(4)}），已自动平移校正对齐至 0001 起始")
+        elif min_no > 1 and int_nos[0] > 1:
+            offset = int_nos[0] - 1
+            for p in absorbed:
+                if re.fullmatch(r"\d{1,4}", p["no"]):
+                    new_val = int(p["no"]) - offset
+                    if new_val >= 1:
+                        p["no"] = str(new_val).zfill(4)
+            actions.append(f"校正首段段号偏移（原 {str(int_nos[0]).zfill(4)}），重设基准对齐至 0001")
+
+    # 重新统计连续性指标
+    final_nums = [int(p["no"]) for p in absorbed if re.fullmatch(r"\d{1,4}", p["no"])]
+    if final_nums:
+        lo, hi = min(final_nums), max(final_nums)
+        exp_set = set(range(lo, hi + 1))
+        found_set = set(final_nums)
+        gaps = sorted(exp_set - found_set)
+        range_str = f"{str(lo).zfill(4)}-{str(hi).zfill(4)}"
+    else:
+        lo, hi, gaps, range_str = 0, 0, [], "custom"
+
+    report = {
+        "status": "pass" if not gaps else "warning_gaps",
+        "range": range_str,
+        "count": len(absorbed),
+        "gaps": [str(g).zfill(4) for g in gaps],
+        "actions": actions
+    }
+
+    return absorbed, report
 
 
 def check_continuity(paras, expect=None):
@@ -811,9 +995,13 @@ async def fetch_patent_from_share_url(share_url, headless=True, browser_path=Non
             await page.goto(desc_url, timeout=70000, wait_until='domcontentloaded')
             await page.wait_for_timeout(4000)
 
-            # 提取说明书原文
-            desc_orig = await page.evaluate(JS_EXTRACT_DESC_ORIGINAL)
-            print(f"    -> 提取到说明书原文段落: {len(desc_orig)} 段")
+            # 提取说明书原文并进行段号一致性校验与自适应对齐
+            raw_orig = await page.evaluate(JS_EXTRACT_DESC_ORIGINAL)
+            desc_orig, orig_report = verify_and_heal_description(raw_orig, patent_id=result.get("biblio", {}).get("pn", ""))
+            print(f"    -> 提取到说明书原文段落: {len(desc_orig)} 段 (原始: {len(raw_orig)} 段)")
+            if orig_report.get("actions"):
+                for act in orig_report["actions"]:
+                    print(f"    [✔] 原文段号纠偏门禁: {act}")
 
             desc_trans = []
             if not is_chinese and trans_mode == 'patsnap' and not custom_zh_map:
@@ -827,8 +1015,12 @@ async def fetch_patent_from_share_url(share_url, headless=True, browser_path=Non
                         if cn_btn:
                             await cn_btn.click()
                             await page.wait_for_timeout(4500)
-                    desc_trans = await page.evaluate(JS_EXTRACT_DESC_TRANSLATION)
-                    print(f"    -> 提取到说明书译文段落: {len(desc_trans)} 段")
+                    raw_trans = await page.evaluate(JS_EXTRACT_DESC_TRANSLATION)
+                    desc_trans, trans_report = verify_and_heal_description(raw_trans, patent_id=result.get("biblio", {}).get("pn", ""))
+                    print(f"    -> 提取到说明书译文段落: {len(desc_trans)} 段 (原始: {len(raw_trans)} 段)")
+                    if trans_report.get("actions"):
+                        for act in trans_report["actions"]:
+                            print(f"    [✔] 译文段号纠偏门禁: {act}")
                 except Exception as e_desc_trans:
                     print(f"    [!] 提取说明书机翻遇到提示: {e_desc_trans}")
 
@@ -864,9 +1056,9 @@ async def fetch_patent_from_share_url(share_url, headless=True, browser_path=Non
             result['description'] = aligned_desc
 
             # 连续性检查
-            cont = check_continuity(desc_orig)
+            cont = orig_report
             result['continuity'] = cont
-            print(f"[*] 说明书连续性自检: 范围={cont['range']}, 应有={cont['expected']}, 实有={cont['found']}, 缺口={cont['gaps']}, 重复={cont['duplicates']}")
+            print(f"[*] 说明书连续性自检: 范围={cont.get('range')}, 实有段数={cont.get('count')}, 缺口={cont.get('gaps')}")
 
             # ------------------------------------------------------------------
             # 4. （可选）访问附图页 (/patent-view/image) 抓取官方附图 (路线B)

@@ -39,7 +39,8 @@ DEFAULT_CONFIG = {
     "temperature": 0.2,
     "concurrency": 5,
     "batch_size": 5,
-    "target_lang": "中文"
+    "target_lang": "中文",
+    "extra_prompt": ""
 }
 
 
@@ -74,8 +75,14 @@ def save_config(cfg: dict):
         print(f"[!] 保存配置文件失败: {e}")
 
 
-def get_system_prompt(target_lang: str = "中文") -> str:
+def get_system_prompt(target_lang: str = "中文", extra_prompt: Optional[str] = None) -> str:
     tl = (target_lang or "中文").strip()
+    extra_rule = ""
+    if extra_prompt and extra_prompt.strip():
+        extra_rule = f"""
+6. 用户定制特定词语与特别翻译指令（最高优先级，全篇强制严格遵守）：
+{extra_prompt.strip()}
+"""
     return f"""你是一位拥有20年经验的资深专利代理师与国家专利审查员。
 你的任务是将外文专利（权利要求书或说明书段落）翻译为严谨、专业、符合官方专利法及审查标准的目标语言：【{tl}】。
 
@@ -94,14 +101,13 @@ def get_system_prompt(target_lang: str = "中文") -> str:
    - 物理空间与机械连接关系必须极为严密。
 5. 输出格式要求：
    - 必须严格返回合法 JSON 对象，格式为：{{"段号/权项号": "对应的{tl}译文", ...}}；
-   - 不要包含 markdown 代码块包裹标记，直接输出纯 JSON 字符串。
-"""
+   - 不要包含 markdown 代码块包裹标记，直接输出纯 JSON 字符串。{extra_rule}"""
 
 SYSTEM_PROMPT = get_system_prompt("中文")
 
 
 class DeepSeekTranslator:
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None, target_lang: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None, target_lang: Optional[str] = None, extra_prompt: Optional[str] = None):
         cfg = load_config()
         self.api_key = api_key or cfg.get("api_key", "")
         self.base_url = (base_url or cfg.get("base_url", "https://api.deepseek.com")).rstrip("/")
@@ -110,6 +116,7 @@ class DeepSeekTranslator:
         self.concurrency = cfg.get("concurrency", 5)
         self.batch_size = cfg.get("batch_size", 5)
         self.target_lang = (target_lang or cfg.get("target_lang", "中文")).strip() or "中文"
+        self.extra_prompt = (extra_prompt if extra_prompt is not None else cfg.get("extra_prompt", "")).strip()
 
     def is_configured(self) -> bool:
         return bool(self.api_key and len(self.api_key.strip()) >= 8)
@@ -166,19 +173,23 @@ class DeepSeekTranslator:
 
         prompt_dict = {item['no']: item['text'] for item in batch_items}
         
+        extra_sec = ""
+        if self.extra_prompt:
+            extra_sec = f"\n\n【用户指定特定词语翻译与特别指令（最高优先级，全篇严格执行）】：\n{self.extra_prompt}\n"
+
         glossary_prompt = ""
         if glossary:
             items_str = "\n".join([f"  - {en} -> {zh}" for en, zh in list(glossary.items())[:35]])
             glossary_prompt = f"\n\n【全篇强制统一术语表 (Glossary)】：\n以下为本专利核心技术特征与附图标记的统一定义，当前分块翻译必须严格遵循，严禁更换同义词，确保全篇一致：\n{items_str}\n"
 
-        user_prompt = f"请将以下专利内容翻译为【{self.target_lang}】（键为编号，值为原文），严格返回JSON字典格式，译文为{self.target_lang}：{glossary_prompt}\n{json.dumps(prompt_dict, ensure_ascii=False, indent=2)}"
+        user_prompt = f"请将以下专利内容翻译为【{self.target_lang}】（键为编号，值为原文），严格返回JSON字典格式，译文为{self.target_lang}：{extra_sec}{glossary_prompt}\n{json.dumps(prompt_dict, ensure_ascii=False, indent=2)}"
 
         url = f"{self.base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        sys_prompt = get_system_prompt(self.target_lang)
+        sys_prompt = get_system_prompt(self.target_lang, extra_prompt=self.extra_prompt)
         payload = {
             "model": self.model,
             "messages": [
@@ -232,7 +243,11 @@ class DeepSeekTranslator:
         for it in sample:
             text_samples.append(f"【权项 {it.get('no')} 原文】: {it.get('en')}\n【权项 {it.get('no')} 译文】: {it.get('zh')}")
 
-        prompt = f"""请分析以下权利要求的中外对照，提取出 15-25 个最关键的技术特征、部件名称及其对应的标准【{self.target_lang}】翻译，生成全篇统一术语表。
+        extra_gloss_hint = ""
+        if self.extra_prompt:
+            extra_gloss_hint = f"\n【用户指定的优先特定术语约定（必须严格包含并服从）】：\n{self.extra_prompt}\n"
+
+        prompt = f"""请分析以下权利要求的中外对照，提取出 15-25 个最关键的技术特征、部件名称及其对应的标准【{self.target_lang}】翻译，生成全篇统一术语表。{extra_gloss_hint}
 特别注意：提取附带附图标记或核心结构名词（如 lock mechanism, tubing section, check valve 等）。
 严格返回合法 JSON 字典格式，键为原文术语，值为标准【{self.target_lang}】译名，例如：
 {{"tubing adapter": "管路转接头", "lock mechanism": "锁定机构", "non-return valve": "止回阀"}}
@@ -368,12 +383,12 @@ def verify_translation_integrity(patent_data: dict, target_lang: str = "中文")
     }
 
 
-def translate_patent_data_sync(patent_data: dict, api_key: Optional[str] = None, progress_callback=None, target_lang: Optional[str] = None) -> dict:
+def translate_patent_data_sync(patent_data: dict, api_key: Optional[str] = None, progress_callback=None, target_lang: Optional[str] = None, extra_prompt: Optional[str] = None) -> dict:
     """
     同步包装函数：对 fetch_share.py 抓取出的 patent_data 结构进行 DeepSeek 翻译，
     并内置【翻译结果脚本核对】与【定向补译 (Auto-Remedy)】机制，确保零遗漏。
     """
-    translator = DeepSeekTranslator(api_key=api_key, target_lang=target_lang)
+    translator = DeepSeekTranslator(api_key=api_key, target_lang=target_lang, extra_prompt=extra_prompt)
     if not translator.is_configured():
         return patent_data
 
