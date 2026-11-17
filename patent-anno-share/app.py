@@ -172,7 +172,7 @@ class GlobalState:
 STATE = GlobalState()
 
 
-def process_single_patent(url, api_key=None, out_dir=None, with_figures=True, target_lang=None, log_cb=None, prog_cb=None):
+def process_single_patent(url, api_key=None, out_dir=None, with_figures=True, target_lang=None, extra_prompt=None, log_cb=None, prog_cb=None):
     """单篇专利全流程处理：抓取 -> DeepSeek 翻译 -> 导出 MD -> 导出 Data.json -> 渲染 HTML"""
     output_dir = out_dir or os.path.join(APP_DIR, "output")
     os.makedirs(output_dir, exist_ok=True)

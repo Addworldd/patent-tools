@@ -66,6 +66,16 @@ def build():
             except Exception:
                 pass
 
+        # 同步更新 '智慧芽专利中英对照生成器' 目录以确保桌面快捷方式永远指向最新编译版本
+        zh_dir = os.path.join(DIST_DIR, "智慧芽专利中英对照生成器")
+        try:
+            if os.path.exists(zh_dir):
+                shutil.rmtree(zh_dir, ignore_errors=True)
+            shutil.copytree(raw_dir, zh_dir)
+            print(f"[+] 已同步更新桌面快捷方式目标目录: {zh_dir}")
+        except Exception as e:
+            print(f"[!] 同步更新中文目录时出错: {e}")
+
         exe_path = os.path.join(raw_dir, "PatentAnnoShare.exe")
         print("\n================================================================================")
         print("                           [+] 打包成功！                                       ")
