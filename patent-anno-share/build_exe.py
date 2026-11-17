@@ -34,6 +34,16 @@ def build():
     print("        正在使用 PyInstaller 打包【智慧芽专利中英对照生成器.exe】...          ")
     print("================================================================================")
     
+    # 强制执行打包前质量门禁与端到端自动化回归测试
+    gatekeeper_script = os.path.join(BASE_DIR, "scripts", "test_gatekeeper.py")
+    if os.path.exists(gatekeeper_script):
+        print("[*] 正在执行打包前质量门禁自动化回归质检 (Gatekeeper CI)...")
+        check_ret = subprocess.run([sys.executable, gatekeeper_script], cwd=BASE_DIR)
+        if check_ret.returncode != 0:
+            print("\n[❌ 致命拦截] 自动化质量门禁测试未全部通过，已坚决中止打包，防止带病发布！")
+            sys.exit(1)
+        print("[✔] 质量门禁 100% 验证通过，继续执行二进制封装...\n")
+    
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
