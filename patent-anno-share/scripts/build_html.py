@@ -60,7 +60,8 @@ def main():
             .replace("__SUBTITLE__", subtitle.replace("<", "&lt;").replace("&", "&amp;"))
             .replace("__DATA__", data_js)
             .replace("__DOC_ID__", json.dumps(doc_id, ensure_ascii=False))
-            .replace("__CLOUD_CFG__", cloud_js))
+            .replace("__CLOUD_CFG__", cloud_js)
+            .replace("__INLINED_MARKS_JSON__", "[]"))
 
     # 有云端配置时插入 SDK script
     if cloud:

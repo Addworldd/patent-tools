@@ -289,7 +289,8 @@ def process_single_patent(url, api_key=None, out_dir=None, with_figures=True, ta
             .replace("__TITLE__", h(full_title))
             .replace("__SUBTITLE__", h(full_sub))
             .replace("__DATA__", data_js)
-            .replace("__DOC_ID__", json.dumps(pn, ensure_ascii=False)))
+            .replace("__DOC_ID__", json.dumps(pn, ensure_ascii=False))
+            .replace("__INLINED_MARKS_JSON__", "[]"))
 
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
