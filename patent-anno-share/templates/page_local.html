@@ -1530,12 +1530,40 @@ function toast(msg, ms=2500, err=false){
 }
 
 /* ---------- 批注导出 / 导入 ---------- */
+function getCurrentLocalDir() {
+  if (window.location.protocol !== 'file:') return null;
+  try {
+    let p = decodeURIComponent(window.location.pathname);
+    if (p.startsWith('/') && p.length > 2 && p[2] === ':') {
+      p = p.substring(1);
+    }
+    const lastSlash = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+    if (lastSlash !== -1) {
+      let dir = p.substring(0, lastSlash);
+      return dir.replace(/\//g, '\\');
+    }
+  } catch (e) {
+    console.warn('获取当前目录失败:', e);
+  }
+  return null;
+}
+
 async function saveBlobWithPicker(blob, defaultName, typeDesc, mimeType, ext) {
+  // 1. 若为本地 file:// 文件，自动提取当前所在的完整文件夹路径并复制到剪贴板，支持另存为窗口按 Ctrl+V 秒级直达
+  const localDir = getCurrentLocalDir();
+  if (localDir && navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(localDir);
+      toast(`📋 已自动复制当前目录！在另存为窗口地址栏按 Ctrl+V 回车可秒级直达当前文件夹`, 4000);
+    } catch(e) {}
+  }
+
   if (window.showSaveFilePicker) {
     try {
       const cleanMime = (mimeType || 'application/octet-stream').split(';')[0].trim();
       const extList = Array.isArray(ext) ? ext : [ext];
       const handle = await window.showSaveFilePicker({
+        id: 'patent_anno_project_folder', // 🔑 核心记忆键：浏览器将为该工具永久绑定记忆用户选择的项目工作目录
         suggestedName: defaultName,
         types: [{
           description: typeDesc,
