@@ -697,13 +697,27 @@ def verify_and_heal_description(paras, patent_id=""):
 
     actions = []
 
-    # 1. 控制字符安全清洗
+    def clean_str(val):
+        if not val or not isinstance(val, str):
+            return ""
+        return "".join(c for c in val if c in ('\n', '\t') or ord(c) >= 32).strip()
+
+    # 1. 控制字符安全清洗，无损保留所有业务字段 (group, en, zh, enMarks, zhMarks 等)
     cleaned = []
     for p in paras:
-        no = str(p.get("no", "")).strip()
-        txt = p.get("text", "")
-        safe_txt = "".join(c for c in txt if c in ('\n', '\t') or ord(c) >= 32).strip()
-        cleaned.append({"no": no, "text": safe_txt})
+        item = dict(p)
+        item["no"] = str(p.get("no", "")).strip()
+        if "text" in item:
+            item["text"] = clean_str(item["text"])
+        if "zh" in item:
+            item["zh"] = clean_str(item["zh"])
+        if "en" in item:
+            item["en"] = clean_str(item["en"])
+        cleaned.append(item)
+
+    # 辅助函数：获取段落主要判断文本
+    def get_para_text(item):
+        return item.get("text") or item.get("zh") or item.get("en") or ""
 
     # 2. 查重与同段号文本无损拼接
     deduped = []
@@ -712,7 +726,13 @@ def verify_and_heal_description(paras, patent_id=""):
         no = p["no"]
         if no in no_to_idx:
             idx = no_to_idx[no]
-            deduped[idx]["text"] += "\n" + p["text"]
+            target = deduped[idx]
+            for fld in ["text", "zh", "en"]:
+                if fld in p and p[fld]:
+                    if fld in target and target[fld]:
+                        target[fld] += "\n" + p[fld]
+                    else:
+                        target[fld] = p[fld]
             actions.append(f"段号 [{no}] 出现重复节点，已执行无损文本合并")
         else:
             no_to_idx[no] = len(deduped)
@@ -746,11 +766,14 @@ def verify_and_heal_description(paras, patent_id=""):
     i = 0
     while i < len(deduped):
         cur = deduped[i]
-        cur_text = cur["text"].strip()
+        cur_text = get_para_text(cur).strip()
         if is_pure_isolated_heading(cur_text) and i + 1 < len(deduped):
             prefix = cur_text if cur_text.startswith('【') else f"【{cur_text}】"
-            deduped[i + 1]["text"] = prefix + "\n" + deduped[i + 1]["text"].strip()
-            actions.append(f"剔除孤立标题段 [{cur['no']}]（'{cur_text}'），已自动吸附至随后的段落 [{deduped[i+1]['no']}]")
+            nxt = deduped[i + 1]
+            for fld in ["text", "zh", "en"]:
+                if fld in nxt and nxt[fld]:
+                    nxt[fld] = prefix + "\n" + nxt[fld].strip()
+            actions.append(f"剔除孤立标题段 [{cur['no']}]（'{cur_text}'），已自动吸附至随后的段落 [{nxt['no']}]")
             i += 1
             continue
         absorbed.append(cur)
@@ -1270,14 +1293,26 @@ def export_as_data_json(patent_data, out_path):
             "zhMarks": []
         })
     # 说明书
+    is_foreign = patent_data.get('is_foreign', False)
     for d in patent_data.get('description', []):
+        txt = d.get('text', '')
+        en_val = d.get('en', '')
+        zh_val = d.get('zh', '')
+        # 双保险兜底：如果 en 和 zh 都为空但包含原始 text
+        if not en_val and not zh_val and txt:
+            if is_foreign:
+                en_val = txt
+                zh_val = txt
+            else:
+                zh_val = txt
+                en_val = ''
         all_items.append({
             "no": d['no'],
             "group": d.get('group', '说明书'),
-            "en": d.get('en', ''),
-            "zh": d.get('zh', ''),
-            "enMarks": [],
-            "zhMarks": []
+            "en": en_val,
+            "zh": zh_val,
+            "enMarks": d.get('enMarks', []),
+            "zhMarks": d.get('zhMarks', [])
         })
 
     data_payload = {
